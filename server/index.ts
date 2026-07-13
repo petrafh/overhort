@@ -2,11 +2,12 @@ import 'dotenv/config'
 import bcrypt from 'bcryptjs'
 import cors from 'cors'
 import express from 'express'
+import { pathToFileURL } from 'node:url'
 import { z } from 'zod'
 import { createToken, requireAuth, type AuthRequest } from './auth.js'
 import { sql } from './db.js'
 
-const app = express()
+export const app = express()
 const port = Number(process.env.PORT ?? 3001)
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173' }))
@@ -29,11 +30,12 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const body = credentialsSchema.extend({
     name: z.string().min(2).max(80),
     username: z.string().regex(/^[a-z0-9_]{3,24}$/),
+    bio: z.string().max(120).optional().default(''),
   }).parse(req.body)
   const passwordHash = await bcrypt.hash(body.password, 12)
   const rows = await sql`
-    insert into users (email, username, name, password_hash)
-    values (${body.email.toLowerCase()}, ${body.username}, ${body.name}, ${passwordHash})
+    insert into users (email, username, name, password_hash, bio)
+    values (${body.email.toLowerCase()}, ${body.username}, ${body.name}, ${passwordHash}, ${body.bio})
     returning id, email, username, name, bio, avatar_url
   `
   res.status(201).json({ user: rows[0], token: createToken(String(rows[0].id)) })
@@ -73,6 +75,60 @@ app.get('/api/feed', requireAuth, asyncRoute(async (req, res) => {
     group by q.id, subject.id, author.id
     order by q.created_at desc
     limit 50
+  `
+  res.json(rows)
+}))
+
+app.get('/api/users/search', requireAuth, asyncRoute(async (req, res) => {
+  const query = z.string().trim().min(2).max(40).parse(req.query.query)
+  const search = `%${query.toLowerCase()}%`
+  const rows = await sql`
+    select u.id, u.name, u.username, u.bio, u.avatar_url as "avatarUrl",
+      coalesce(sent.id, received.id) as "requestId",
+      case
+        when f.user_low_id is not null then 'friend'
+        when sent.id is not null then 'sent'
+        when received.id is not null then 'received'
+        else 'none'
+      end as "relationshipStatus"
+    from users u
+    left join friendships f
+      on f.user_low_id = least(u.id, ${req.userId}::uuid)
+      and f.user_high_id = greatest(u.id, ${req.userId}::uuid)
+    left join friend_requests sent
+      on sent.sender_id = ${req.userId} and sent.receiver_id = u.id and sent.status = 'pending'
+    left join friend_requests received
+      on received.sender_id = u.id and received.receiver_id = ${req.userId} and received.status = 'pending'
+    where u.id <> ${req.userId}
+      and (lower(u.username) like ${search} or lower(u.name) like ${search})
+    order by
+      case when lower(u.username) = ${query.toLowerCase()} then 0 else 1 end,
+      u.username
+    limit 12
+  `
+  res.json(rows)
+}))
+
+app.get('/api/friends', requireAuth, asyncRoute(async (req, res) => {
+  const rows = await sql`
+    select u.id, u.name, u.username, u.bio, u.avatar_url as "avatarUrl",
+      (select count(*)::int from friendships own where own.user_low_id = u.id or own.user_high_id = u.id) as "friendCount"
+    from friendships f
+    join users u on u.id = case when f.user_low_id = ${req.userId} then f.user_high_id else f.user_low_id end
+    where f.user_low_id = ${req.userId} or f.user_high_id = ${req.userId}
+    order by u.name
+  `
+  res.json(rows)
+}))
+
+app.get('/api/friend-requests', requireAuth, asyncRoute(async (req, res) => {
+  const rows = await sql`
+    select u.id, u.name, u.username, u.bio, u.avatar_url as "avatarUrl", fr.id as "requestId",
+      (select count(*)::int from friendships own where own.user_low_id = u.id or own.user_high_id = u.id) as "friendCount"
+    from friend_requests fr
+    join users u on u.id = fr.sender_id
+    where fr.receiver_id = ${req.userId} and fr.status = 'pending'
+    order by fr.created_at desc
   `
   res.json(rows)
 }))
@@ -187,4 +243,6 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   res.status(500).json({ error: 'Noe gikk galt på serveren.' })
 })
 
-app.listen(port, () => console.log(`Overhørt API kjører på http://localhost:${port}`))
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  app.listen(port, () => console.log(`Overhørt API kjører på http://localhost:${port}`))
+}

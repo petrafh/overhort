@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   Check,
@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { currentUser, friends, initialQuotes, pendingRequests, quoteColors } from './data'
+import { api } from './api'
 import type { Quote, Tab, User } from './types'
 
 function Avatar({ user, size = 'md', ring = false }: { user: User; size?: 'sm' | 'md' | 'lg' | 'xl'; ring?: boolean }) {
@@ -275,7 +276,7 @@ function CreateQuote({ onPublish, onCancel }: { onPublish: (text: string, friend
             {matches.length === 0 && (
               <div className="rounded-2xl border border-dashed border-black/10 px-5 py-10 text-center">
                 <UsersRound size={20} className="mx-auto text-black/30" />
-                <p className="mt-3 text-xs font-semibold">Ingen venner å velge ennå</p>
+                <p className="mt-3 text-xs font-semibold">Ingen venner å velge enda</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-black/40">Godta en venneforespørsel før du legger ut et sitat.</p>
               </div>
             )}
@@ -347,7 +348,7 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast }: { quotes: Q
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-black/15 py-16 text-center"><p className="text-sm font-semibold">Ingen sitater ennå</p><p className="mt-1 text-xs text-black/45">Vennene dine har visst vært diskrete.</p></div>
+            <div className="rounded-2xl border border-dashed border-black/15 py-16 text-center"><p className="text-sm font-semibold">Ingen sitater enda</p><p className="mt-1 text-xs text-black/45">Vennene dine har visst vært diskrete.</p></div>
           )}
         </section>
       </main>
@@ -364,9 +365,93 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast }: { quotes: Q
   )
 }
 
-function Friends({ requests, accepted, onAccept, onDecline }: { requests: User[]; accepted: User[]; onAccept: (user: User) => void; onDecline: (id: string) => void }) {
-  const [query, setQuery] = useState('')
-  const visibleFriends = accepted.filter((user) => user.name.toLowerCase().includes(query.toLowerCase()) || user.username.includes(query.toLowerCase()))
+interface UserSearchResult {
+  id: string
+  name: string
+  username: string
+  bio: string
+  avatarUrl: string | null
+  requestId: string | null
+  relationshipStatus: 'none' | 'sent' | 'received' | 'friend'
+}
+
+interface ApiPublicUser {
+  id: string
+  name: string
+  username: string
+  bio: string
+  avatarUrl: string | null
+  friendCount?: number
+}
+
+type FriendRequestUser = User & { requestId: string }
+
+const apiUserToUser = (user: ApiPublicUser): User => ({
+  id: user.id,
+  name: user.name,
+  username: user.username,
+  bio: user.bio,
+  initials: user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
+  avatar: user.avatarUrl ? `url(${user.avatarUrl}) center / cover` : 'linear-gradient(145deg, #354d69, #86a2be)',
+  friendCount: user.friendCount ?? 0,
+  isFriend: false,
+})
+
+function Friends({ requests, accepted, onAccept, onDecline }: { requests: FriendRequestUser[]; accepted: User[]; onAccept: (user: User, requestId: string) => Promise<void>; onDecline: (userId: string, requestId: string) => Promise<void> }) {
+  const [friendQuery, setFriendQuery] = useState('')
+  const [discoverQuery, setDiscoverQuery] = useState('')
+  const [results, setResults] = useState<UserSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const visibleFriends = accepted.filter((user) => user.name.toLowerCase().includes(friendQuery.toLowerCase()) || user.username.includes(friendQuery.toLowerCase()))
+
+  useEffect(() => {
+    const cleanQuery = discoverQuery.trim()
+    if (cleanQuery.length < 2) {
+      setResults([])
+      setSearchError('')
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setSearching(true)
+      setSearchError('')
+      try {
+        const users = await api<UserSearchResult[]>(`/users/search?query=${encodeURIComponent(cleanQuery)}`, { signal: controller.signal })
+        setResults(users)
+      } catch (error) {
+        if (!controller.signal.aborted) setSearchError(error instanceof Error ? error.message : 'Kunne ikke søke etter brukere.')
+      } finally {
+        if (!controller.signal.aborted) setSearching(false)
+      }
+    }, 350)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [discoverQuery])
+
+  const sendRequest = async (userId: string) => {
+    try {
+      await api('/friend-requests', { method: 'POST', body: JSON.stringify({ toUserId: userId }) })
+      setResults((items) => items.map((item) => item.id === userId ? { ...item, relationshipStatus: 'sent' } : item))
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : 'Kunne ikke sende venneforespørselen.')
+    }
+  }
+
+  const acceptSearchRequest = async (result: UserSearchResult) => {
+    if (!result.requestId) return
+    try {
+      await onAccept(apiUserToUser(result), result.requestId)
+      setResults((items) => items.map((item) => item.id === result.id ? { ...item, relationshipStatus: 'friend' } : item))
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : 'Kunne ikke godta venneforespørselen.')
+    }
+  }
+
   return (
     <>
       <MobileHeader title="Venner" onFriends={() => undefined} requestCount={requests.length} />
@@ -380,15 +465,47 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: User[]
               <div key={user.id} className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-4">
                 <Avatar user={user} size="lg" />
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{user.name}</p><p className="text-xs text-black/40">@{user.username} · {user.friendCount} venner</p></div>
-                <button onClick={() => onAccept(user)} className="grid h-9 w-9 place-items-center rounded-full bg-black text-white" aria-label="Godta"><Check size={16} /></button>
-                <button onClick={() => onDecline(user.id)} className="grid h-9 w-9 place-items-center rounded-full border border-black/10" aria-label="Avslå"><X size={16} /></button>
+                <button onClick={() => onAccept(user, user.requestId)} className="grid h-9 w-9 place-items-center rounded-full bg-black text-white" aria-label="Godta"><Check size={16} /></button>
+                <button onClick={() => onDecline(user.id, user.requestId)} className="grid h-9 w-9 place-items-center rounded-full border border-black/10" aria-label="Avslå"><X size={16} /></button>
               </div>
             ))}
           </div>
         </section>
 
         <section className="mt-10 border-t border-black/10 pt-7">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-base font-semibold">Alle venner <span className="ml-1 text-black/35">{accepted.length}</span></h2><label className="flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5"><Search size={16} className="text-black/35"/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Søk" className="w-full bg-transparent text-xs outline-none sm:w-40" /></label></div>
+          <div>
+            <p className="eyebrow">Oppdag</p>
+            <h2 className="mt-1 text-lg font-semibold">Finn venner</h2>
+            <p className="mt-1 text-xs text-black/45">Søk etter navn eller eksakt brukernavn.</p>
+          </div>
+          <label className="mt-5 flex items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3.5 focus-within:border-black">
+            <Search size={18} className="text-black/35" />
+            <input value={discoverQuery} onChange={(event) => setDiscoverQuery(event.target.value)} placeholder="Søk etter @brukernavn" className="w-full bg-transparent text-sm outline-none" />
+            {searching && <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-black" />}
+          </label>
+          <div aria-live="polite" className="mt-3 min-h-5">{searchError && <p className="text-xs text-[#a75d50]">{searchError}</p>}</div>
+          {discoverQuery.trim().length >= 2 && !searching && results.length === 0 && !searchError && (
+            <p className="rounded-2xl border border-dashed border-black/10 p-6 text-center text-xs text-black/40">Ingen brukere matcher søket.</p>
+          )}
+          <div className="mt-1 grid gap-2 md:grid-cols-2">
+            {results.map((result) => {
+              const user = apiUserToUser(result)
+              return (
+                <div key={result.id} className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-4">
+                  <Avatar user={user} size="md" />
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{result.name}</p><p className="truncate text-xs text-black/40">@{result.username}</p></div>
+                  {result.relationshipStatus === 'none' && <button onClick={() => sendRequest(result.id)} className="rounded-full bg-black px-4 py-2 text-[11px] font-semibold text-white">Legg til</button>}
+                  {result.relationshipStatus === 'sent' && <span className="rounded-full bg-black/5 px-3 py-2 text-[10px] font-semibold text-black/40">Sendt</span>}
+                  {result.relationshipStatus === 'received' && <button onClick={() => acceptSearchRequest(result)} className="rounded-full bg-black px-4 py-2 text-[11px] font-semibold text-white">Godta</button>}
+                  {result.relationshipStatus === 'friend' && <span className="flex items-center gap-1 text-[10px] font-semibold text-black/40"><Check size={13} /> Venner</span>}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="mt-10 border-t border-black/10 pt-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-base font-semibold">Alle venner <span className="ml-1 text-black/35">{accepted.length}</span></h2><label className="flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5"><Search size={16} className="text-black/35"/><input value={friendQuery} onChange={(e) => setFriendQuery(e.target.value)} placeholder="Filtrer venner" className="w-full bg-transparent text-xs outline-none sm:w-40" /></label></div>
           <div className="mt-5 divide-y divide-black/5">
             {visibleFriends.map((user) => (
               <div key={user.id} className="flex items-center gap-3 py-4"><Avatar user={user} size="md"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{user.name}</p><p className="truncate text-xs text-black/40">{user.bio}</p></div><button className="rounded-full border border-black/10 px-4 py-2 text-[11px] font-semibold">Se profil</button></div>
@@ -396,7 +513,7 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: User[]
             {visibleFriends.length === 0 && (
               <div className="py-14 text-center">
                 <UsersRound size={22} className="mx-auto text-black/25" />
-                <p className="mt-3 text-sm font-semibold">Ingen venner ennå</p>
+                <p className="mt-3 text-sm font-semibold">Ingen venner enda</p>
                 <p className="mt-1 text-xs text-black/40">Søk etter noen du kjenner og send en forespørsel.</p>
               </div>
             )}
@@ -410,9 +527,21 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: User[]
 function OverhortApp() {
   const [activeTab, setActiveTab] = useState<Tab>('feed')
   const [quotes, setQuotes] = useState(initialQuotes)
-  const [requests, setRequests] = useState(pendingRequests)
+  const [requests, setRequests] = useState<FriendRequestUser[]>(pendingRequests as FriendRequestUser[])
   const [acceptedFriends, setAcceptedFriends] = useState(friends)
   const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    Promise.all([
+      api<ApiPublicUser[]>('/friends'),
+      api<(ApiPublicUser & { requestId: string })[]>('/friend-requests'),
+    ]).then(([friendRows, requestRows]) => {
+      setAcceptedFriends(friendRows.map((user) => ({ ...apiUserToUser(user), isFriend: true })))
+      setRequests(requestRows.map((user) => ({ ...apiUserToUser(user), requestId: user.requestId })))
+    }).catch(() => {
+      // Tomtilstandene beholdes dersom API-et er midlertidig utilgjengelig.
+    })
+  }, [])
 
   const showToast = (message: string) => {
     setToast(message)
@@ -432,7 +561,7 @@ function OverhortApp() {
   const content = useMemo(() => {
     if (activeTab === 'create') return <CreateQuote onPublish={publish} onCancel={() => setActiveTab('feed')} />
     if (activeTab === 'profile') return <Profile quotes={quotes} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} />
-    if (activeTab === 'friends') return <Friends requests={requests} accepted={acceptedFriends} onAccept={(user) => { setRequests((items) => items.filter((item) => item.id !== user.id)); setAcceptedFriends((items) => [...items, { ...user, isFriend: true }]); showToast(`Du og ${user.name.split(' ')[0]} er nå venner`) }} onDecline={(id) => setRequests((items) => items.filter((item) => item.id !== id))} />
+    if (activeTab === 'friends') return <Friends requests={requests} accepted={acceptedFriends} onAccept={async (user, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }); setRequests((items) => items.filter((item) => item.id !== user.id)); setAcceptedFriends((items) => [...items.filter((item) => item.id !== user.id), { ...user, isFriend: true }]); showToast(`Du og ${user.name.split(' ')[0]} er nå venner`) }} onDecline={async (userId, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'declined' }) }); setRequests((items) => items.filter((item) => item.id !== userId)) }} />
     return <Feed quotes={quotes} onLike={like} onComment={comment} goFriends={() => setActiveTab('friends')} requestCount={requests.length} />
   }, [activeTab, quotes, requests, acceptedFriends])
 
@@ -449,9 +578,9 @@ const DEMO_KEY = 'jegelskerpetra!'
 const DEMO_ACCESS_SESSION_KEY = 'overhort_demo_access'
 const DEMO_PROFILE_STORAGE_KEY = 'overhort_demo_profile'
 
-type DemoProfile = Pick<User, 'name' | 'username' | 'initials' | 'avatar' | 'bio'>
+type DemoProfile = Pick<User, 'name' | 'username' | 'initials' | 'avatar' | 'bio'> & { id?: string }
 
-function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile) => void }) {
+function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile, credentials: { email: string; password: string }) => Promise<void> }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -459,6 +588,7 @@ function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile) => vo
   const [bio, setBio] = useState('')
   const [avatar, setAvatar] = useState('linear-gradient(145deg, #1d2530 0%, #64707c 100%)')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const avatarChoices = [
     'linear-gradient(145deg, #1d2530 0%, #64707c 100%)',
     'linear-gradient(145deg, #7a4d3d, #d6a584)',
@@ -468,20 +598,26 @@ function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile) => vo
   ]
   const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'DU'
 
-  const createProfile = (event: FormEvent<HTMLFormElement>) => {
+  const createProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const cleanUsername = username.trim().toLowerCase().replace(/^@/, '')
     if (name.trim().length < 2) return setError('Skriv inn navnet ditt.')
     if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) return setError('Brukernavnet må ha 3–24 tegn og kan bare inneholde små bokstaver, tall og _.')
     if (password.length < 8) return setError('Passordet må inneholde minst 8 tegn.')
 
-    onComplete({
-      name: name.trim(),
-      username: cleanUsername,
-      initials,
-      avatar,
-      bio: bio.trim() || 'Ny på Overhørt.',
-    })
+    setSubmitting(true)
+    try {
+      await onComplete({
+        name: name.trim(),
+        username: cleanUsername,
+        initials,
+        avatar,
+        bio: bio.trim() || 'Ny på Overhørt.',
+      }, { email: email.trim().toLowerCase(), password })
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Kunne ikke opprette profilen.')
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -544,8 +680,8 @@ function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile) => vo
               </label>
 
               <div aria-live="polite" className="min-h-5">{error && <p className="text-xs text-[#a75d50]">{error}</p>}</div>
-              <button type="submit" className="w-full rounded-full bg-black py-3.5 text-sm font-semibold text-white transition hover:bg-black/80">Opprett profil og fortsett</button>
-              <p className="text-center text-[10px] leading-relaxed text-black/35">Dette er en demo. Passordet brukes kun til validering og lagres ikke i nettleseren.</p>
+              <button type="submit" disabled={submitting} className="w-full rounded-full bg-black py-3.5 text-sm font-semibold text-white transition hover:bg-black/80 disabled:cursor-wait disabled:bg-black/50">{submitting ? 'Oppretter profil …' : 'Opprett profil og fortsett'}</button>
+              <p className="text-center text-[10px] leading-relaxed text-black/35">Passordet sendes kryptert til serveren og lagres kun som en sikker hash.</p>
             </div>
           </form>
         </section>
@@ -558,7 +694,8 @@ export default function App() {
   const [hasAccess, setHasAccess] = useState(() => sessionStorage.getItem(DEMO_ACCESS_SESSION_KEY) === 'granted')
   const [hasProfile, setHasProfile] = useState(() => {
     const savedProfile = localStorage.getItem(DEMO_PROFILE_STORAGE_KEY)
-    if (!savedProfile) return false
+    const token = localStorage.getItem('overhort_token')
+    if (!savedProfile || !token) return false
     try {
       Object.assign(currentUser, JSON.parse(savedProfile) as DemoProfile)
       return true
@@ -582,9 +719,20 @@ export default function App() {
   }
 
   if (hasAccess && !hasProfile) {
-    return <ProfileSetup onComplete={(profile) => {
-      Object.assign(currentUser, profile)
-      localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(profile))
+    return <ProfileSetup onComplete={async (profile, credentials) => {
+      const result = await api<{ user: { id: string }; token: string }>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...credentials,
+          name: profile.name,
+          username: profile.username,
+          bio: profile.bio,
+        }),
+      })
+      const storedProfile = { ...profile, id: result.user.id }
+      Object.assign(currentUser, storedProfile)
+      localStorage.setItem('overhort_token', result.token)
+      localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(storedProfile))
       setHasProfile(true)
     }} />
   }

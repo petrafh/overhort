@@ -20,7 +20,11 @@ Webappen starter med lokale demodata, så grensesnittet kan prøves uten databas
 
 `DATABASE_URL` brukes kun i Express-API-et og eksponeres aldri med `VITE_`-prefiks. API-et bruker parameteriserte Neon-spørringer, bcrypt-hashing av passord og JWT for autentisering. Vennekontroll utføres i SQL før sitater kan opprettes eller hentes.
 
-I neste integrasjonssteg kan UI-et byttes fra `src/data.ts` til funksjonene i `src/api.ts`; demodataene er beholdt med vilje for at designprototypen skal være umiddelbart kjørbar.
+Profiloppretting, brukersøk og venneforespørsler bruker API-et direkte. Produksjonsversjonen inneholder ingen eksempelbrukere.
+
+## Netlify
+
+`netlify.toml` bygger Vite-appen og publiserer Express-API-et som en Netlify Function. Legg inn `DATABASE_URL`, `JWT_SECRET` og `CLIENT_ORIGIN` under Netlify → Project configuration → Environment variables. `CLIENT_ORIGIN` skal være den publiserte Netlify-adressen, for eksempel `https://ditt-domene.netlify.app`.
 
 ## Scripts
 
