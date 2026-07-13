@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import {
   Bell,
+  Camera,
   Check,
   ChevronLeft,
   Heart,
@@ -31,7 +32,7 @@ function Avatar({ user, size = 'md', ring = false }: { user: User; size?: 'sm' |
       style={{ background: user.avatar }}
       aria-label={`Profilbilde til ${user.name}`}
     >
-      {user.initials}
+      {!user.avatar.includes('url(') && user.initials}
     </div>
   )
 }
@@ -291,8 +292,114 @@ function CreateQuote({ onPublish, onCancel }: { onPublish: (text: string, friend
   )
 }
 
-function Profile({ quotes, onDelete, onLike, onComment, showToast }: { quotes: Quote[]; onDelete: (id: string) => void; onLike: (id: string) => void; onComment: (id: string, text: string) => void; showToast: (message: string) => void }) {
+async function resizeProfileImage(file: File) {
+  if (!file.type.startsWith('image/')) throw new Error('Velg en gyldig bildefil.')
+  if (file.size > 8 * 1024 * 1024) throw new Error('Bildet kan ikke være større enn 8 MB.')
+
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image()
+      element.onload = () => resolve(element)
+      element.onerror = () => reject(new Error('Kunne ikke lese bildet.'))
+      element.src = objectUrl
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = 320
+    canvas.height = 320
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Nettleseren kunne ikke behandle bildet.')
+    const cropSize = Math.min(image.naturalWidth, image.naturalHeight)
+    const sourceX = (image.naturalWidth - cropSize) / 2
+    const sourceY = (image.naturalHeight - cropSize) / 2
+    context.drawImage(image, sourceX, sourceY, cropSize, cropSize, 0, 0, 320, 320)
+    return canvas.toDataURL('image/jpeg', 0.82)
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => void; onUpdated: (changes: Partial<User>) => void; showToast: (message: string) => void }) {
+  const [name, setName] = useState(currentUser.name)
+  const [email, setEmail] = useState(currentUser.email ?? '')
+  const [avatarPreview, setAvatarPreview] = useState(currentUser.avatar)
+  const [avatarData, setAvatarData] = useState<string>()
+  const [saving, setSaving] = useState(false)
+  const [processingImage, setProcessingImage] = useState(false)
+  const [error, setError] = useState('')
+  const previewInitials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || currentUser.initials
+
+  const chooseImage = async (file?: File) => {
+    if (!file) return
+    setProcessingImage(true)
+    setError('')
+    try {
+      const resized = await resizeProfileImage(file)
+      setAvatarData(resized)
+      setAvatarPreview(`url(${resized}) center / cover`)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Kunne ikke behandle bildet.')
+    } finally {
+      setProcessingImage(false)
+    }
+  }
+
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      const updated = await api<{ id: string; name: string; email: string; username: string; bio: string; avatarUrl: string | null }>('/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), ...(avatarData ? { avatarUrl: avatarData } : {}) }),
+      })
+      const changes: Partial<User> = {
+        name: updated.name,
+        email: updated.email,
+        initials: updated.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
+        ...(updated.avatarUrl ? { avatar: `url(${updated.avatarUrl}) center / cover` } : {}),
+      }
+      onUpdated(changes)
+      showToast('Profilen er oppdatert')
+      onClose()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Kunne ikke lagre profilen.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+      <section className="my-6 w-full max-w-lg rounded-[26px] bg-white p-6 shadow-2xl sm:p-8" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div><p className="eyebrow">Innstillinger</p><h2 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">Rediger profil</h2></div>
+          <button onClick={onClose} className="icon-button" aria-label="Lukk"><X size={19} /></button>
+        </div>
+        <form onSubmit={save} className="mt-7 space-y-4">
+          <div className="flex items-center gap-5 rounded-2xl bg-[#f7f7f5] p-4">
+            <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full text-lg font-semibold text-white" style={{ background: avatarPreview }}>{!avatarPreview.includes('url(') && previewInitials}</div>
+            <div>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-black px-4 py-2.5 text-xs font-semibold text-white">
+                <Camera size={15} /> {processingImage ? 'Behandler …' : 'Velg nytt bilde'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={processingImage} onChange={(event) => chooseImage(event.target.files?.[0])} />
+              </label>
+              <p className="mt-2 text-[10px] text-black/40">JPG, PNG eller WebP · maks 8 MB</p>
+            </div>
+          </div>
+          <label className="profile-field"><span>Fullt navn</span><input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} required /></label>
+          <label className="profile-field"><span>E-post</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+          <label className="profile-field opacity-60"><span>Brukernavn · kan ikke endres enda</span><input value={`@${currentUser.username}`} disabled /></label>
+          <div aria-live="polite" className="min-h-5">{error && <p className="text-xs text-[#a75d50]">{error}</p>}</div>
+          <div className="flex gap-3 pt-1"><button type="button" onClick={onClose} className="flex-1 rounded-full border border-black/15 py-3 text-xs font-semibold">Avbryt</button><button type="submit" disabled={saving || processingImage} className="flex-1 rounded-full bg-black py-3 text-xs font-semibold text-white disabled:bg-black/40">{saving ? 'Lagrer …' : 'Lagre endringer'}</button></div>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+function Profile({ quotes, onDelete, onLike, onComment, showToast, onProfileUpdated }: { quotes: Quote[]; onDelete: (id: string) => void; onLike: (id: string) => void; onComment: (id: string, text: string) => void; showToast: (message: string) => void; onProfileUpdated: (changes: Partial<User>) => void }) {
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
+  const [editing, setEditing] = useState(false)
   const ownQuotes = quotes.filter((quote) => quote.subject.id === currentUser.id)
 
   return (
@@ -313,7 +420,7 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast }: { quotes: Q
                 <p><span className="font-semibold">{currentUser.friendCount}</span> <span className="text-black/45">venner</span></p>
               </div>
             </div>
-            <button className="hidden rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold sm:block" onClick={() => showToast('Profilredigering kommer snart')}>Rediger profil</button>
+            <button className="hidden rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold sm:block" onClick={() => setEditing(true)}>Rediger profil</button>
             <button className="sm:hidden"><Menu size={22} /></button>
           </div>
           <p className="mt-6 max-w-md text-sm leading-relaxed">{currentUser.bio}</p>
@@ -322,7 +429,7 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast }: { quotes: Q
             <p className="flex-1 border-l border-black/10"><span className="block font-semibold">{currentUser.friendCount}</span><span className="text-xs text-black/45">venner</span></p>
           </div>
           <div className="mt-5 flex gap-3 sm:hidden">
-            <button className="flex-1 rounded-full bg-black py-3 text-xs font-semibold text-white" onClick={() => showToast('Profilredigering kommer snart')}>Rediger profil</button>
+            <button className="flex-1 rounded-full bg-black py-3 text-xs font-semibold text-white" onClick={() => setEditing(true)}>Rediger profil</button>
             <button className="grid h-10 w-10 place-items-center rounded-full border border-black/15"><UserRoundCheck size={17} /></button>
           </div>
         </section>
@@ -361,6 +468,7 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast }: { quotes: Q
           </div>
         </div>
       )}
+      {editing && <EditProfileModal onClose={() => setEditing(false)} onUpdated={onProfileUpdated} showToast={showToast} />}
     </>
   )
 }
@@ -530,14 +638,28 @@ function OverhortApp() {
   const [requests, setRequests] = useState<FriendRequestUser[]>(pendingRequests as FriendRequestUser[])
   const [acceptedFriends, setAcceptedFriends] = useState(friends)
   const [toast, setToast] = useState('')
+  const [profileRevision, setProfileRevision] = useState(0)
 
   useEffect(() => {
     Promise.all([
       api<ApiPublicUser[]>('/friends'),
       api<(ApiPublicUser & { requestId: string })[]>('/friend-requests'),
-    ]).then(([friendRows, requestRows]) => {
+      api<{ id: string; name: string; username: string; email: string; bio: string; avatarUrl: string | null }>('/me'),
+    ]).then(([friendRows, requestRows, me]) => {
       setAcceptedFriends(friendRows.map((user) => ({ ...apiUserToUser(user), isFriend: true })))
       setRequests(requestRows.map((user) => ({ ...apiUserToUser(user), requestId: user.requestId })))
+      const syncedProfile: Partial<User> = {
+        id: me.id,
+        name: me.name,
+        username: me.username,
+        email: me.email,
+        bio: me.bio,
+        initials: me.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
+        ...(me.avatarUrl ? { avatar: `url(${me.avatarUrl}) center / cover` } : {}),
+      }
+      Object.assign(currentUser, syncedProfile)
+      localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(currentUser))
+      setProfileRevision((value) => value + 1)
     }).catch(() => {
       // Tomtilstandene beholdes dersom API-et er midlertidig utilgjengelig.
     })
@@ -560,10 +682,10 @@ function OverhortApp() {
   }
   const content = useMemo(() => {
     if (activeTab === 'create') return <CreateQuote onPublish={publish} onCancel={() => setActiveTab('feed')} />
-    if (activeTab === 'profile') return <Profile quotes={quotes} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} />
+    if (activeTab === 'profile') return <Profile quotes={quotes} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} onProfileUpdated={(changes) => { Object.assign(currentUser, changes); localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(currentUser)); setProfileRevision((value) => value + 1) }} />
     if (activeTab === 'friends') return <Friends requests={requests} accepted={acceptedFriends} onAccept={async (user, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }); setRequests((items) => items.filter((item) => item.id !== user.id)); setAcceptedFriends((items) => [...items.filter((item) => item.id !== user.id), { ...user, isFriend: true }]); showToast(`Du og ${user.name.split(' ')[0]} er nå venner`) }} onDecline={async (userId, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'declined' }) }); setRequests((items) => items.filter((item) => item.id !== userId)) }} />
     return <Feed quotes={quotes} onLike={like} onComment={comment} goFriends={() => setActiveTab('friends')} requestCount={requests.length} />
-  }, [activeTab, quotes, requests, acceptedFriends])
+  }, [activeTab, quotes, requests, acceptedFriends, profileRevision])
 
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-[#101010]">
@@ -578,7 +700,7 @@ const DEMO_KEY = 'jegelskerpetra!'
 const DEMO_ACCESS_SESSION_KEY = 'overhort_demo_access'
 const DEMO_PROFILE_STORAGE_KEY = 'overhort_demo_profile'
 
-type DemoProfile = Pick<User, 'name' | 'username' | 'initials' | 'avatar' | 'bio'> & { id?: string }
+type DemoProfile = Pick<User, 'name' | 'username' | 'initials' | 'avatar' | 'bio'> & { id?: string; email?: string }
 
 function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile, credentials: { email: string; password: string }) => Promise<void> }) {
   const [name, setName] = useState('')
@@ -729,7 +851,7 @@ export default function App() {
           bio: profile.bio,
         }),
       })
-      const storedProfile = { ...profile, id: result.user.id }
+      const storedProfile = { ...profile, id: result.user.id, email: credentials.email }
       Object.assign(currentUser, storedProfile)
       localStorage.setItem('overhort_token', result.token)
       localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(storedProfile))

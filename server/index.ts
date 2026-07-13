@@ -53,6 +53,43 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   res.json({ user: safeUser, token: createToken(String(user.id)) })
 }))
 
+app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
+  const rows = await sql`
+    select id, email, username, name, bio, avatar_url as "avatarUrl"
+    from users where id = ${req.userId} limit 1
+  `
+  if (!rows[0]) {
+    res.status(404).json({ error: 'Fant ikke profilen.' })
+    return
+  }
+  res.json(rows[0])
+}))
+
+app.patch('/api/me', requireAuth, asyncRoute(async (req, res) => {
+  const body = z.object({
+    name: z.string().trim().min(2).max(80),
+    email: z.string().email(),
+    avatarUrl: z.string().max(600_000).refine(
+      (value) => /^data:image\/(jpeg|png|webp);base64,/.test(value),
+      'Ugyldig profilbilde.',
+    ).optional(),
+  }).parse(req.body)
+  const hasNewAvatar = body.avatarUrl !== undefined
+  const rows = await sql`
+    update users
+    set name = ${body.name},
+      email = ${body.email.toLowerCase()},
+      avatar_url = case when ${hasNewAvatar} then ${body.avatarUrl ?? null} else avatar_url end
+    where id = ${req.userId}
+    returning id, email, username, name, bio, avatar_url as "avatarUrl"
+  `
+  if (!rows[0]) {
+    res.status(404).json({ error: 'Fant ikke profilen.' })
+    return
+  }
+  res.json(rows[0])
+}))
+
 app.get('/api/feed', requireAuth, asyncRoute(async (req, res) => {
   const rows = await sql`
     select q.id, q.body as text, q.background_color as color, q.created_at,
