@@ -206,6 +206,14 @@ function Feed({ quotes, onLike, onComment, goFriends, requestCount }: { quotes: 
         </div>
         <div className="space-y-8 sm:space-y-7">
           {quotes.map((quote) => <QuoteCard key={quote.id} quote={quote} onLike={() => onLike(quote.id)} onComment={(text) => onComment(quote.id, text)} />)}
+          {quotes.length === 0 && (
+            <div className="rounded-[22px] border border-dashed border-black/15 bg-white/50 px-6 py-20 text-center">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-black text-white"><MessageCircle size={20} /></div>
+              <h2 className="mt-5 text-base font-semibold">Feed-en din er helt ny</h2>
+              <p className="mx-auto mt-2 max-w-xs text-xs leading-relaxed text-black/45">Når du får venner og de legger ut sitater, dukker de opp her.</p>
+              <button onClick={goFriends} className="mt-6 rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold">Finn venner</button>
+            </div>
+          )}
         </div>
       </main>
     </>
@@ -264,6 +272,13 @@ function CreateQuote({ onPublish, onCancel }: { onPublish: (text: string, friend
                 {selected?.id === friend.id && <Check size={18} className="ml-auto" />}
               </button>
             ))}
+            {matches.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-black/10 px-5 py-10 text-center">
+                <UsersRound size={20} className="mx-auto text-black/30" />
+                <p className="mt-3 text-xs font-semibold">Ingen venner å velge ennå</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-black/40">Godta en venneforespørsel før du legger ut et sitat.</p>
+              </div>
+            )}
           </div>
           <div className="mt-5 flex items-center gap-2 rounded-xl bg-black/[0.035] px-4 py-3 text-xs leading-relaxed text-black/45">
             <LockKeyhole size={16} className="shrink-0" />
@@ -378,6 +393,13 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: User[]
             {visibleFriends.map((user) => (
               <div key={user.id} className="flex items-center gap-3 py-4"><Avatar user={user} size="md"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{user.name}</p><p className="truncate text-xs text-black/40">{user.bio}</p></div><button className="rounded-full border border-black/10 px-4 py-2 text-[11px] font-semibold">Se profil</button></div>
             ))}
+            {visibleFriends.length === 0 && (
+              <div className="py-14 text-center">
+                <UsersRound size={22} className="mx-auto text-black/25" />
+                <p className="mt-3 text-sm font-semibold">Ingen venner ennå</p>
+                <p className="mt-1 text-xs text-black/40">Søk etter noen du kjenner og send en forespørsel.</p>
+              </div>
+            )}
           </div>
         </section>
       </main>
