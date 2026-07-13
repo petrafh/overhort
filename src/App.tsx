@@ -8,6 +8,7 @@ import {
   Home,
   KeyRound,
   LockKeyhole,
+  LogIn,
   Menu,
   MessageCircle,
   MoreHorizontal,
@@ -17,6 +18,7 @@ import {
   Trash2,
   UserRound,
   UserRoundCheck,
+  UserPlus,
   UsersRound,
   X,
 } from 'lucide-react'
@@ -698,11 +700,90 @@ function OverhortApp() {
 
 const DEMO_KEY = 'jegelskerpetra!'
 const DEMO_ACCESS_SESSION_KEY = 'overhort_demo_access'
+const AUTH_SESSION_KEY = 'overhort_authenticated'
 const DEMO_PROFILE_STORAGE_KEY = 'overhort_demo_profile'
 
 type DemoProfile = Pick<User, 'name' | 'username' | 'initials' | 'avatar' | 'bio'> & { id?: string; email?: string }
 
-function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile, credentials: { email: string; password: string }) => Promise<void> }) {
+function AuthChoice({ onLogin, onRegister }: { onLogin: () => void; onRegister: () => void }) {
+  return (
+    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#f7f7f5] px-5 py-10 text-[#101010]">
+      <div className="pointer-events-none absolute -left-24 -top-28 h-80 w-80 rounded-full bg-[#a75d50]/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -right-24 h-96 w-96 rounded-full bg-[#496f6b]/15 blur-3xl" />
+      <section className="relative w-full max-w-[470px] rounded-[28px] border border-black/10 bg-white p-7 shadow-card sm:p-10">
+        <div className="flex justify-center"><Wordmark /></div>
+        <div className="mt-10 text-center">
+          <p className="eyebrow">Demo-tilgang godkjent</p>
+          <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em]">Hvordan vil du fortsette?</h1>
+          <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-black/50">Logg inn hvis du allerede har en konto, eller opprett en ny profil.</p>
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <button onClick={onLogin} className="group rounded-2xl border border-black/10 bg-[#f7f7f5] p-5 text-left transition hover:border-black hover:bg-white">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-black text-white"><LogIn size={18} /></span>
+            <span className="mt-5 block text-sm font-semibold">Logg inn</span>
+            <span className="mt-1 block text-[11px] leading-relaxed text-black/45">Jeg har allerede en profil</span>
+          </button>
+          <button onClick={onRegister} className="group rounded-2xl bg-black p-5 text-left text-white transition hover:bg-black/80">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-black"><UserPlus size={18} /></span>
+            <span className="mt-5 block text-sm font-semibold">Opprett profil</span>
+            <span className="mt-1 block text-[11px] leading-relaxed text-white/50">Jeg er ny på Overhørt</span>
+          </button>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+interface AuthUserResponse {
+  id: string
+  email: string
+  username: string
+  name: string
+  bio: string
+  avatarUrl: string | null
+}
+
+function LoginScreen({ onBack, onComplete }: { onBack: () => void; onComplete: (user: AuthUserResponse, token: string) => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const login = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSubmitting(true)
+    setError('')
+    try {
+      const result = await api<{ user: AuthUserResponse; token: string }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      })
+      onComplete(result.user, result.token)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Kunne ikke logge inn.')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#f7f7f5] px-5 py-10 text-[#101010]">
+      <div className="pointer-events-none absolute -left-24 -top-28 h-80 w-80 rounded-full bg-[#76608a]/12 blur-3xl" />
+      <section className="relative w-full max-w-[440px] rounded-[28px] border border-black/10 bg-white p-7 shadow-card sm:p-10">
+        <div className="flex items-center justify-between"><button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-black/45"><ChevronLeft size={17} /> Tilbake</button><Wordmark /></div>
+        <div className="mt-9"><p className="eyebrow">Velkommen tilbake</p><h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em]">Logg inn</h1><p className="mt-2 text-sm text-black/45">Bruk e-posten og passordet til profilen din.</p></div>
+        <form onSubmit={login} className="mt-7 space-y-4">
+          <label className="profile-field"><span>E-post</span><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError('') }} autoComplete="email" autoFocus placeholder="deg@eksempel.no" required /></label>
+          <label className="profile-field"><span>Passord</span><input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError('') }} autoComplete="current-password" placeholder="Passordet ditt" required /></label>
+          <div aria-live="polite" className="min-h-5">{error && <p className="text-xs text-[#a75d50]">{error}</p>}</div>
+          <button type="submit" disabled={submitting} className="w-full rounded-full bg-black py-3.5 text-sm font-semibold text-white transition hover:bg-black/80 disabled:bg-black/40">{submitting ? 'Logger inn …' : 'Logg inn'}</button>
+        </form>
+        <button onClick={onBack} className="mt-6 w-full text-center text-xs text-black/45">Har du ingen profil? <span className="font-semibold text-black">Opprett en</span></button>
+      </section>
+    </main>
+  )
+}
+
+function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfile, credentials: { email: string; password: string }) => Promise<void>; onBack: () => void }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -749,7 +830,7 @@ function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile, crede
 
       <div className="relative mx-auto w-full max-w-[720px]">
         <div className="flex items-center justify-between">
-          <Wordmark />
+          <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-black/45"><ChevronLeft size={17} /> Tilbake</button>
           <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-black/35">
             <span className="grid h-5 w-5 place-items-center rounded-full bg-black text-white">1</span>
             <span className="h-px w-5 bg-black/15" />
@@ -817,7 +898,8 @@ export default function App() {
   const [hasProfile, setHasProfile] = useState(() => {
     const savedProfile = localStorage.getItem(DEMO_PROFILE_STORAGE_KEY)
     const token = localStorage.getItem('overhort_token')
-    if (!savedProfile || !token) return false
+    const authenticatedThisSession = sessionStorage.getItem(AUTH_SESSION_KEY) === 'true'
+    if (!savedProfile || !token || !authenticatedThisSession) return false
     try {
       Object.assign(currentUser, JSON.parse(savedProfile) as DemoProfile)
       return true
@@ -828,6 +910,7 @@ export default function App() {
   })
   const [demoKey, setDemoKey] = useState('')
   const [error, setError] = useState('')
+  const [authMode, setAuthMode] = useState<'choice' | 'login' | 'register'>('choice')
 
   const unlockDemo = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -841,7 +924,26 @@ export default function App() {
   }
 
   if (hasAccess && !hasProfile) {
-    return <ProfileSetup onComplete={async (profile, credentials) => {
+    if (authMode === 'choice') return <AuthChoice onLogin={() => setAuthMode('login')} onRegister={() => setAuthMode('register')} />
+
+    if (authMode === 'login') return <LoginScreen onBack={() => setAuthMode('choice')} onComplete={(user, token) => {
+      const storedProfile: DemoProfile = {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        bio: user.bio,
+        initials: user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
+        avatar: user.avatarUrl ? `url(${user.avatarUrl}) center / cover` : 'linear-gradient(145deg, #1d2530 0%, #64707c 100%)',
+      }
+      Object.assign(currentUser, storedProfile)
+      localStorage.setItem('overhort_token', token)
+      localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(storedProfile))
+      sessionStorage.setItem(AUTH_SESSION_KEY, 'true')
+      setHasProfile(true)
+    }} />
+
+    return <ProfileSetup onBack={() => setAuthMode('choice')} onComplete={async (profile, credentials) => {
       const result = await api<{ user: { id: string }; token: string }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify({
@@ -855,6 +957,7 @@ export default function App() {
       Object.assign(currentUser, storedProfile)
       localStorage.setItem('overhort_token', result.token)
       localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(storedProfile))
+      sessionStorage.setItem(AUTH_SESSION_KEY, 'true')
       setHasProfile(true)
     }} />
   }

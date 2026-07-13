@@ -43,7 +43,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const body = credentialsSchema.parse(req.body)
-  const rows = await sql`select id, email, username, name, bio, avatar_url, password_hash from users where email = ${body.email.toLowerCase()} limit 1`
+  const rows = await sql`select id, email, username, name, bio, avatar_url as "avatarUrl", password_hash from users where email = ${body.email.toLowerCase()} limit 1`
   const user = rows[0]
   if (!user || !await bcrypt.compare(body.password, String(user.password_hash))) {
     res.status(401).json({ error: 'Feil e-post eller passord.' })
