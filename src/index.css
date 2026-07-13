@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { @apply border-black/10; }
+  html { @apply scroll-smooth; }
+  body { @apply m-0 min-w-[320px] bg-[#f7f7f5] font-sans antialiased; }
+  button, input, textarea { font: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+  ::selection { @apply bg-black text-white; }
+}
+
+@layer components {
+  .page-shell { @apply mx-auto w-full max-w-[640px] px-5 py-0 sm:px-7 lg:py-12; }
+  .page-shell-wide { @apply mx-auto w-full max-w-[960px] px-5 sm:px-8 lg:py-12; }
+  .page-title { @apply mt-1 text-[38px] font-semibold leading-tight tracking-[-0.045em]; }
+  .eyebrow { @apply text-[10px] font-semibold uppercase tracking-[0.18em] text-black/40; }
+  .nav-item { @apply flex w-full items-center gap-4 rounded-xl px-3 py-3 text-sm font-medium text-black/50 transition hover:bg-black/5 hover:text-black; }
+  .nav-item-active { @apply bg-black text-white hover:bg-black hover:text-white; }
+  .icon-button { @apply grid h-9 w-9 place-items-center rounded-full transition hover:bg-black/5; }
+  .quote-panel { @apply relative grid min-h-[390px] place-items-center overflow-hidden px-7 py-16 sm:aspect-[4/4.25] sm:min-h-0; }
+}
+
+@media (max-width: 639px) {
+  .quote-panel { margin-left: -1.25rem; margin-right: -1.25rem; }
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border: 2px solid #f7f7f5; border-radius: 999px; background: rgba(0,0,0,.18); }
