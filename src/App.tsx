@@ -425,9 +425,126 @@ function OverhortApp() {
 
 const DEMO_KEY = 'jegelskerpetra!'
 const DEMO_ACCESS_SESSION_KEY = 'overhort_demo_access'
+const DEMO_PROFILE_STORAGE_KEY = 'overhort_demo_profile'
+
+type DemoProfile = Pick<User, 'name' | 'username' | 'initials' | 'avatar' | 'bio'>
+
+function ProfileSetup({ onComplete }: { onComplete: (profile: DemoProfile) => void }) {
+  const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [bio, setBio] = useState('')
+  const [avatar, setAvatar] = useState('linear-gradient(145deg, #1d2530 0%, #64707c 100%)')
+  const [error, setError] = useState('')
+  const avatarChoices = [
+    'linear-gradient(145deg, #1d2530 0%, #64707c 100%)',
+    'linear-gradient(145deg, #7a4d3d, #d6a584)',
+    'linear-gradient(145deg, #314f43, #89a99b)',
+    'linear-gradient(145deg, #523e69, #ad91c9)',
+    'linear-gradient(145deg, #7c713c, #c8bd79)',
+  ]
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'DU'
+
+  const createProfile = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const cleanUsername = username.trim().toLowerCase().replace(/^@/, '')
+    if (name.trim().length < 2) return setError('Skriv inn navnet ditt.')
+    if (!/^[a-z0-9_]{3,24}$/.test(cleanUsername)) return setError('Brukernavnet må ha 3–24 tegn og kan bare inneholde små bokstaver, tall og _.')
+    if (password.length < 8) return setError('Passordet må inneholde minst 8 tegn.')
+
+    onComplete({
+      name: name.trim(),
+      username: cleanUsername,
+      initials,
+      avatar,
+      bio: bio.trim() || 'Ny på Overhørt.',
+    })
+  }
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#f7f7f5] px-5 py-8 text-[#101010] sm:py-12">
+      <div className="pointer-events-none absolute -left-24 top-16 h-80 w-80 rounded-full bg-[#76608a]/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-[#a17b3f]/10 blur-3xl" />
+
+      <div className="relative mx-auto w-full max-w-[720px]">
+        <div className="flex items-center justify-between">
+          <Wordmark />
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-black/35">
+            <span className="grid h-5 w-5 place-items-center rounded-full bg-black text-white">1</span>
+            <span className="h-px w-5 bg-black/15" />
+            <span className="grid h-5 w-5 place-items-center rounded-full bg-black text-white">2</span>
+            Profil
+          </div>
+        </div>
+
+        <section className="mt-9 rounded-[28px] border border-black/10 bg-white p-6 shadow-card sm:mt-12 sm:p-10">
+          <div>
+            <p className="eyebrow">Før du slipper inn</p>
+            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em] sm:text-[38px]">Opprett profilen din</h1>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-black/50">Vennene dine trenger en profil å legge sitatene på. Du kan endre informasjonen senere.</p>
+          </div>
+
+          <form onSubmit={createProfile} className="mt-8 grid gap-8 md:grid-cols-[150px_1fr]">
+            <div>
+              <p className="text-xs font-semibold">Profilfarge</p>
+              <div className="mt-4 grid h-24 w-24 place-items-center rounded-full text-xl font-semibold text-white ring-2 ring-black ring-offset-4 ring-offset-white" style={{ background: avatar }}>{initials}</div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {avatarChoices.map((choice) => (
+                  <button key={choice} type="button" onClick={() => setAvatar(choice)} aria-label="Velg profilfarge" className={`h-7 w-7 rounded-full transition ${avatar === choice ? 'ring-2 ring-black ring-offset-2' : 'hover:scale-110'}`} style={{ background: choice }} />
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              <label className="profile-field">
+                <span>Fullt navn</span>
+                <input value={name} onChange={(event) => { setName(event.target.value); setError('') }} autoFocus autoComplete="name" placeholder="Petra Flores" required />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="profile-field">
+                  <span>Brukernavn</span>
+                  <div className="flex items-center"><span className="text-sm text-black/35">@</span><input value={username} onChange={(event) => { setUsername(event.target.value); setError('') }} autoComplete="username" placeholder="petra" required /></div>
+                </label>
+                <label className="profile-field">
+                  <span>E-post</span>
+                  <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError('') }} autoComplete="email" placeholder="deg@eksempel.no" required />
+                </label>
+              </div>
+              <label className="profile-field">
+                <span>Passord</span>
+                <input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError('') }} autoComplete="new-password" placeholder="Minst 8 tegn" minLength={8} required />
+              </label>
+              <label className="profile-field">
+                <span>Biografi <em>valgfritt</em></span>
+                <textarea value={bio} onChange={(event) => setBio(event.target.value)} maxLength={120} placeholder="Fortell litt om deg selv …" rows={3} />
+                <small>{bio.length}/120</small>
+              </label>
+
+              <div aria-live="polite" className="min-h-5">{error && <p className="text-xs text-[#a75d50]">{error}</p>}</div>
+              <button type="submit" className="w-full rounded-full bg-black py-3.5 text-sm font-semibold text-white transition hover:bg-black/80">Opprett profil og fortsett</button>
+              <p className="text-center text-[10px] leading-relaxed text-black/35">Dette er en demo. Passordet brukes kun til validering og lagres ikke i nettleseren.</p>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  )
+}
 
 export default function App() {
   const [hasAccess, setHasAccess] = useState(() => sessionStorage.getItem(DEMO_ACCESS_SESSION_KEY) === 'granted')
+  const [hasProfile, setHasProfile] = useState(() => {
+    const savedProfile = localStorage.getItem(DEMO_PROFILE_STORAGE_KEY)
+    if (!savedProfile) return false
+    try {
+      Object.assign(currentUser, JSON.parse(savedProfile) as DemoProfile)
+      return true
+    } catch {
+      localStorage.removeItem(DEMO_PROFILE_STORAGE_KEY)
+      return false
+    }
+  })
   const [demoKey, setDemoKey] = useState('')
   const [error, setError] = useState('')
 
@@ -442,7 +559,15 @@ export default function App() {
     setHasAccess(true)
   }
 
-  if (hasAccess) return <OverhortApp />
+  if (hasAccess && !hasProfile) {
+    return <ProfileSetup onComplete={(profile) => {
+      Object.assign(currentUser, profile)
+      localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(profile))
+      setHasProfile(true)
+    }} />
+  }
+
+  if (hasAccess && hasProfile) return <OverhortApp />
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#f7f7f5] px-5 py-10 text-[#101010]">

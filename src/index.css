@@ -22,6 +22,11 @@
   .nav-item-active { @apply bg-black text-white hover:bg-black hover:text-white; }
   .icon-button { @apply grid h-9 w-9 place-items-center rounded-full transition hover:bg-black/5; }
   .quote-panel { @apply relative grid min-h-[390px] place-items-center overflow-hidden px-7 py-16 sm:aspect-[4/4.25] sm:min-h-0; }
+  .profile-field { @apply relative block rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 transition focus-within:border-black; }
+  .profile-field > span { @apply mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45; }
+  .profile-field input, .profile-field textarea { @apply w-full resize-none bg-transparent text-sm outline-none placeholder:text-black/25; }
+  .profile-field em { @apply ml-1 font-normal not-italic text-black/30; }
+  .profile-field small { @apply absolute bottom-2 right-3 text-[9px] text-black/25; }
 }
 
 @media (max-width: 639px) {
