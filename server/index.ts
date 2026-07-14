@@ -24,17 +24,23 @@ const credentialsSchema = z.object({
   password: z.string().min(8).max(100),
 })
 
+const avatarDataUrlSchema = z.string().max(600_000).refine(
+  (value) => /^data:image\/(jpeg|png|webp);base64,/.test(value),
+  'Ugyldig profilbilde.',
+)
+
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const body = credentialsSchema.extend({
     name: z.string().min(2).max(80),
     username: z.string().regex(/^[a-z0-9_]{3,24}$/),
     bio: z.string().max(120).optional().default(''),
+    avatarUrl: avatarDataUrlSchema.optional(),
   }).parse(req.body)
   const passwordHash = await bcrypt.hash(body.password, 12)
   const rows = await sql`
-    insert into users (email, username, name, password_hash, bio)
-    values (${body.email.toLowerCase()}, ${body.username}, ${body.name}, ${passwordHash}, ${body.bio})
-    returning id, email, username, name, bio, avatar_url
+    insert into users (email, username, name, password_hash, bio, avatar_url)
+    values (${body.email.toLowerCase()}, ${body.username}, ${body.name}, ${passwordHash}, ${body.bio}, ${body.avatarUrl ?? null})
+    returning id, email, username, name, bio, avatar_url as "avatarUrl"
   `
   res.status(201).json({ user: rows[0], token: createToken(String(rows[0].id)) })
 }))
@@ -67,10 +73,7 @@ app.patch('/api/me', requireAuth, asyncRoute(async (req, res) => {
   const body = z.object({
     name: z.string().trim().min(2).max(80),
     email: z.string().email(),
-    avatarUrl: z.string().max(600_000).refine(
-      (value) => /^data:image\/(jpeg|png|webp);base64,/.test(value),
-      'Ugyldig profilbilde.',
-    ).optional(),
+    avatarUrl: avatarDataUrlSchema.optional(),
   }).parse(req.body)
   const hasNewAvatar = body.avatarUrl !== undefined
   const rows = await sql`

@@ -783,13 +783,15 @@ function LoginScreen({ onBack, onComplete }: { onBack: () => void; onComplete: (
   )
 }
 
-function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfile, credentials: { email: string; password: string }) => Promise<void>; onBack: () => void }) {
+function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfile, credentials: { email: string; password: string; avatarUrl?: string }) => Promise<void>; onBack: () => void }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [bio, setBio] = useState('')
   const [avatar, setAvatar] = useState('linear-gradient(145deg, #1d2530 0%, #64707c 100%)')
+  const [avatarData, setAvatarData] = useState<string>()
+  const [processingImage, setProcessingImage] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const avatarChoices = [
@@ -800,6 +802,21 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
     'linear-gradient(145deg, #7c713c, #c8bd79)',
   ]
   const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'DU'
+
+  const chooseProfileImage = async (file?: File) => {
+    if (!file) return
+    setProcessingImage(true)
+    setError('')
+    try {
+      const resized = await resizeProfileImage(file)
+      setAvatarData(resized)
+      setAvatar(`url(${resized}) center / cover`)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Kunne ikke behandle bildet.')
+    } finally {
+      setProcessingImage(false)
+    }
+  }
 
   const createProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -816,7 +833,7 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
         initials,
         avatar,
         bio: bio.trim() || 'Ny på Overhørt.',
-      }, { email: email.trim().toLowerCase(), password })
+      }, { email: email.trim().toLowerCase(), password, ...(avatarData ? { avatarUrl: avatarData } : {}) })
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Kunne ikke opprette profilen.')
       setSubmitting(false)
@@ -841,18 +858,22 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
 
         <section className="mt-9 rounded-[28px] border border-black/10 bg-white p-6 shadow-card sm:mt-12 sm:p-10">
           <div>
-            <p className="eyebrow">Før du slipper inn</p>
-            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em] sm:text-[38px]">Opprett profilen din</h1>
-            <p className="mt-3 max-w-lg text-sm leading-relaxed text-black/50">Vennene dine trenger en profil å legge sitatene på. Du kan endre informasjonen senere.</p>
+            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em] sm:text-[38px]">Opprett profil</h1>
           </div>
 
           <form onSubmit={createProfile} className="mt-8 grid gap-8 md:grid-cols-[150px_1fr]">
             <div>
-              <p className="text-xs font-semibold">Profilfarge</p>
-              <div className="mt-4 grid h-24 w-24 place-items-center rounded-full text-xl font-semibold text-white ring-2 ring-black ring-offset-4 ring-offset-white" style={{ background: avatar }}>{initials}</div>
+              <p className="text-xs font-semibold">Profilbilde</p>
+              <div className="mt-4 grid h-24 w-24 place-items-center rounded-full text-xl font-semibold text-white ring-2 ring-black ring-offset-4 ring-offset-white" style={{ background: avatar }}>{!avatar.includes('url(') && initials}</div>
+              <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-black px-3.5 py-2.5 text-[11px] font-semibold text-white">
+                <Camera size={14} /> {processingImage ? 'Behandler …' : 'Velg bilde'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={processingImage} onChange={(event) => chooseProfileImage(event.target.files?.[0])} />
+              </label>
+              <p className="mt-2 text-[9px] leading-relaxed text-black/35">JPG, PNG eller WebP · maks 8 MB</p>
+              <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.12em] text-black/35">Eller velg farge</p>
               <div className="mt-5 flex flex-wrap gap-2">
                 {avatarChoices.map((choice) => (
-                  <button key={choice} type="button" onClick={() => setAvatar(choice)} aria-label="Velg profilfarge" className={`h-7 w-7 rounded-full transition ${avatar === choice ? 'ring-2 ring-black ring-offset-2' : 'hover:scale-110'}`} style={{ background: choice }} />
+                  <button key={choice} type="button" onClick={() => { setAvatar(choice); setAvatarData(undefined) }} aria-label="Velg profilfarge" className={`h-7 w-7 rounded-full transition ${avatar === choice ? 'ring-2 ring-black ring-offset-2' : 'hover:scale-110'}`} style={{ background: choice }} />
                 ))}
               </div>
             </div>
@@ -860,12 +881,12 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
             <div className="grid gap-4">
               <label className="profile-field">
                 <span>Fullt navn</span>
-                <input value={name} onChange={(event) => { setName(event.target.value); setError('') }} autoFocus autoComplete="name" placeholder="Petra Flores" required />
+                <input value={name} onChange={(event) => { setName(event.target.value); setError('') }} autoFocus autoComplete="name" placeholder="Kari Nordmann" required />
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="profile-field">
                   <span>Brukernavn</span>
-                  <div className="flex items-center"><span className="text-sm text-black/35">@</span><input value={username} onChange={(event) => { setUsername(event.target.value); setError('') }} autoComplete="username" placeholder="petra" required /></div>
+                  <div className="flex items-center"><span className="text-sm text-black/35">@</span><input value={username} onChange={(event) => { setUsername(event.target.value); setError('') }} autoComplete="username" placeholder="kari_nordmann" required /></div>
                 </label>
                 <label className="profile-field">
                   <span>E-post</span>
@@ -883,7 +904,7 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
               </label>
 
               <div aria-live="polite" className="min-h-5">{error && <p className="text-xs text-[#a75d50]">{error}</p>}</div>
-              <button type="submit" disabled={submitting} className="w-full rounded-full bg-black py-3.5 text-sm font-semibold text-white transition hover:bg-black/80 disabled:cursor-wait disabled:bg-black/50">{submitting ? 'Oppretter profil …' : 'Opprett profil og fortsett'}</button>
+              <button type="submit" disabled={submitting || processingImage} className="w-full rounded-full bg-black py-3.5 text-sm font-semibold text-white transition hover:bg-black/80 disabled:cursor-wait disabled:bg-black/50">{submitting ? 'Oppretter profil …' : 'Opprett profil'}</button>
               <p className="text-center text-[10px] leading-relaxed text-black/35">Passordet sendes kryptert til serveren og lagres kun som en sikker hash.</p>
             </div>
           </form>
