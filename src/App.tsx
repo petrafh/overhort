@@ -17,7 +17,6 @@ import {
   Send,
   Trash2,
   UserRound,
-  UserRoundCheck,
   UserPlus,
   UsersRound,
   X,
@@ -61,19 +60,19 @@ function Nav({ active, onChange, requestCount }: { active: Tab; onChange: (tab: 
   const items: { id: Tab; label: string; icon: typeof Home }[] = [
     { id: 'feed', label: 'Hjem', icon: Home },
     { id: 'create', label: 'Nytt sitat', icon: Plus },
-    { id: 'friends', label: 'Venner', icon: UsersRound },
     { id: 'profile', label: 'Profil', icon: UserRound },
   ]
+  const visibleActiveTab = active === 'friends' ? 'profile' : active
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[244px] flex-col border-r border-black/10 bg-[#f7f7f5] px-7 py-8 lg:flex">
         <Wordmark />
         <nav className="mt-16 space-y-2">
           {items.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => onChange(id)} className={`nav-item ${active === id ? 'nav-item-active' : ''}`}>
+            <button key={id} onClick={() => onChange(id)} className={`nav-item ${visibleActiveTab === id ? 'nav-item-active' : ''}`}>
               <span className="relative">
-                <Icon size={21} strokeWidth={active === id ? 2.4 : 1.7} />
-                {id === 'friends' && requestCount > 0 && <span className="absolute -right-2 -top-2 h-2 w-2 rounded-full bg-[#a75d50]" />}
+                <Icon size={21} strokeWidth={visibleActiveTab === id ? 2.4 : 1.7} />
+                {id === 'profile' && requestCount > 0 && <span className="absolute -right-2 -top-2 h-2 w-2 rounded-full bg-[#a75d50]" />}
               </span>
               {label}
             </button>
@@ -91,12 +90,12 @@ function Nav({ active, onChange, requestCount }: { active: Tab; onChange: (tab: 
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[74px] items-start justify-around border-t border-black/10 bg-[#f7f7f5]/95 px-5 pt-3 shadow-nav backdrop-blur-xl lg:hidden">
         {items.map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => onChange(id)} className={`relative flex min-w-14 flex-col items-center gap-1 text-[10px] ${active === id ? 'font-semibold text-black' : 'text-black/45'}`}>
+          <button key={id} onClick={() => onChange(id)} className={`relative flex min-w-14 flex-col items-center gap-1 text-[10px] ${visibleActiveTab === id ? 'font-semibold text-black' : 'text-black/45'}`}>
             <span className={`${id === 'create' ? 'grid h-9 w-9 -translate-y-1 place-items-center rounded-full bg-black text-white' : 'grid h-7 place-items-center'}`}>
-              <Icon size={id === 'create' ? 20 : 22} strokeWidth={active === id ? 2.4 : 1.8} />
+              <Icon size={id === 'create' ? 20 : 22} strokeWidth={visibleActiveTab === id ? 2.4 : 1.8} />
             </span>
             {id !== 'create' && label}
-            {id === 'friends' && requestCount > 0 && <span className="absolute right-2 top-0 h-2 w-2 rounded-full bg-[#a75d50] ring-2 ring-[#f7f7f5]" />}
+            {id === 'profile' && requestCount > 0 && <span className="absolute right-2 top-0 h-2 w-2 rounded-full bg-[#a75d50] ring-2 ring-[#f7f7f5]" />}
           </button>
         ))}
       </nav>
@@ -431,7 +430,7 @@ function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => vo
   )
 }
 
-function Profile({ quotes, onDelete, onLike, onComment, showToast, onProfileUpdated }: { quotes: Quote[]; onDelete: (id: string) => void; onLike: (id: string) => void; onComment: (id: string, text: string) => void; showToast: (message: string) => void; onProfileUpdated: (changes: Partial<User>) => void }) {
+function Profile({ quotes, friendCount, requestCount, onFriends, onDelete, onLike, onComment, showToast, onProfileUpdated }: { quotes: Quote[]; friendCount: number; requestCount: number; onFriends: () => void; onDelete: (id: string) => void; onLike: (id: string) => void; onComment: (id: string, text: string) => void; showToast: (message: string) => void; onProfileUpdated: (changes: Partial<User>) => void }) {
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
   const [editing, setEditing] = useState(false)
   useBodyScrollLock(Boolean(selectedQuote) || editing)
@@ -439,7 +438,7 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast, onProfileUpda
 
   return (
     <>
-      <MobileHeader title="Profil" onFriends={() => showToast('Ingen nye varsler')} requestCount={0} />
+      <MobileHeader title="Profil" onFriends={onFriends} requestCount={requestCount} />
       <main className="page-shell-wide">
         <section className="pt-7 lg:pt-0">
           <div className="flex items-start gap-5 md:items-center md:gap-9">
@@ -452,20 +451,23 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast, onProfileUpda
               <p className="mt-1 text-sm text-black/45">@{currentUser.username}</p>
               <div className="mt-4 hidden items-center gap-8 text-sm sm:flex">
                 <p><span className="font-semibold">{ownQuotes.length}</span> <span className="text-black/45">sitater</span></p>
-                <p><span className="font-semibold">{currentUser.friendCount}</span> <span className="text-black/45">venner</span></p>
+                <button onClick={onFriends}><span className="font-semibold">{friendCount}</span> <span className="text-black/45">venner</span></button>
               </div>
             </div>
-            <button className="hidden rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold sm:block" onClick={() => setEditing(true)}>Rediger profil</button>
+            <div className="hidden items-center gap-2 sm:flex">
+              <button className="relative rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold" onClick={onFriends}><UserPlus size={15} className="mr-1.5 inline" /> Finn venner{requestCount > 0 && <span className="ml-2 rounded-full bg-[#a75d50] px-1.5 py-0.5 text-[9px] text-white">{requestCount}</span>}</button>
+              <button className="rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold" onClick={() => setEditing(true)}>Rediger profil</button>
+            </div>
             <button className="sm:hidden"><Menu size={22} /></button>
           </div>
           <p className="mt-6 max-w-md text-sm leading-relaxed">{currentUser.bio}</p>
           <div className="mt-5 flex items-center gap-8 border-y border-black/10 py-4 text-center text-sm sm:hidden">
             <p className="flex-1"><span className="block font-semibold">{ownQuotes.length}</span><span className="text-xs text-black/45">sitater</span></p>
-            <p className="flex-1 border-l border-black/10"><span className="block font-semibold">{currentUser.friendCount}</span><span className="text-xs text-black/45">venner</span></p>
+            <button onClick={onFriends} className="flex-1 border-l border-black/10"><span className="block font-semibold">{friendCount}</span><span className="text-xs text-black/45">venner</span></button>
           </div>
           <div className="mt-5 flex gap-3 sm:hidden">
             <button className="flex-1 rounded-full bg-black py-3 text-xs font-semibold text-white" onClick={() => setEditing(true)}>Rediger profil</button>
-            <button className="grid h-10 w-10 place-items-center rounded-full border border-black/15"><UserRoundCheck size={17} /></button>
+            <button onClick={onFriends} className="relative grid h-10 w-10 place-items-center rounded-full border border-black/15" aria-label="Finn venner"><UserPlus size={17} />{requestCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#a75d50] px-1 text-[9px] font-bold text-white">{requestCount}</span>}</button>
           </div>
         </section>
 
@@ -717,7 +719,7 @@ function OverhortApp() {
   }
   const content = useMemo(() => {
     if (activeTab === 'create') return <CreateQuote onPublish={publish} onCancel={() => setActiveTab('feed')} />
-    if (activeTab === 'profile') return <Profile quotes={quotes} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} onProfileUpdated={(changes) => { Object.assign(currentUser, changes); localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(currentUser)); setProfileRevision((value) => value + 1) }} />
+    if (activeTab === 'profile') return <Profile quotes={quotes} friendCount={acceptedFriends.length} requestCount={requests.length} onFriends={() => setActiveTab('friends')} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} onProfileUpdated={(changes) => { Object.assign(currentUser, changes); localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(currentUser)); setProfileRevision((value) => value + 1) }} />
     if (activeTab === 'friends') return <Friends requests={requests} accepted={acceptedFriends} onAccept={async (user, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }); setRequests((items) => items.filter((item) => item.id !== user.id)); setAcceptedFriends((items) => [...items.filter((item) => item.id !== user.id), { ...user, isFriend: true }]); showToast(`Du og ${user.name.split(' ')[0]} er nå venner`) }} onDecline={async (userId, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'declined' }) }); setRequests((items) => items.filter((item) => item.id !== userId)) }} />
     return <Feed quotes={quotes} onLike={like} onComment={comment} goFriends={() => setActiveTab('friends')} requestCount={requests.length} />
   }, [activeTab, quotes, requests, acceptedFriends, profileRevision])
