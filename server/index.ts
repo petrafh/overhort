@@ -2,13 +2,11 @@ import 'dotenv/config'
 import bcrypt from 'bcryptjs'
 import cors from 'cors'
 import express from 'express'
-import { pathToFileURL } from 'node:url'
 import { z } from 'zod'
 import { createToken, requireAuth, type AuthRequest } from './auth.js'
 import { sql } from './db.js'
 
 export const app = express()
-const port = Number(process.env.PORT ?? 3001)
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173' }))
 app.use(express.json({ limit: '1mb' }))
@@ -279,7 +277,3 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   console.error(error)
   res.status(500).json({ error: 'Noe gikk galt på serveren.' })
 })
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  app.listen(port, () => console.log(`Overhørt API kjører på http://localhost:${port}`))
-}

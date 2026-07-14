@@ -17,6 +17,7 @@ Webappen starter med lokale demodata, så grensesnittet kan prøves uten databas
 2. Åpne Neon SQL Editor og kjør `database/schema.sql`.
 3. Kopier `.env.example` til `.env`.
 4. Lim inn en pooled Neon connection string som `DATABASE_URL`, og sett en lang tilfeldig `JWT_SECRET`.
+5. Kjør `npm run db:migrate` for å opprette tabellene. Bruk `npm run db:check` for en skrivebeskyttet kontroll.
 
 `DATABASE_URL` brukes kun i Express-API-et og eksponeres aldri med `VITE_`-prefiks. API-et bruker parameteriserte Neon-spørringer, bcrypt-hashing av passord og JWT for autentisering. Vennekontroll utføres i SQL før sitater kan opprettes eller hentes.
 
