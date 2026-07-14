@@ -318,6 +318,38 @@ async function resizeProfileImage(file: File) {
   }
 }
 
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return
+
+    const body = document.body
+    const scrollY = window.scrollY
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    const previous = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      paddingRight: body.style.paddingRight,
+    }
+
+    body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.width = '100%'
+    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`
+
+    return () => {
+      body.style.overflow = previous.overflow
+      body.style.position = previous.position
+      body.style.top = previous.top
+      body.style.width = previous.width
+      body.style.paddingRight = previous.paddingRight
+      window.scrollTo(0, scrollY)
+    }
+  }, [locked])
+}
+
 function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => void; onUpdated: (changes: Partial<User>) => void; showToast: (message: string) => void }) {
   const [name, setName] = useState(currentUser.name)
   const [email, setEmail] = useState(currentUser.email ?? '')
@@ -399,6 +431,7 @@ function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => vo
 function Profile({ quotes, onDelete, onLike, onComment, showToast, onProfileUpdated }: { quotes: Quote[]; onDelete: (id: string) => void; onLike: (id: string) => void; onComment: (id: string, text: string) => void; showToast: (message: string) => void; onProfileUpdated: (changes: Partial<User>) => void }) {
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
   const [editing, setEditing] = useState(false)
+  useBodyScrollLock(Boolean(selectedQuote) || editing)
   const ownQuotes = quotes.filter((quote) => quote.subject.id === currentUser.id)
 
   return (
@@ -460,8 +493,8 @@ function Profile({ quotes, onDelete, onLike, onComment, showToast, onProfileUpda
       </main>
 
       {selectedQuote && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={() => setSelectedQuote(null)}>
-          <div className="relative w-full max-w-xl" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/65 p-4 backdrop-blur-sm" onMouseDown={() => setSelectedQuote(null)}>
+          <div className="relative my-12 w-full max-w-xl" onMouseDown={(e) => e.stopPropagation()}>
             <button onClick={() => setSelectedQuote(null)} className="absolute -top-12 right-0 grid h-9 w-9 place-items-center rounded-full bg-white text-black"><X size={19} /></button>
             <QuoteCard quote={quotes.find((item) => item.id === selectedQuote.id) ?? selectedQuote} onLike={() => onLike(selectedQuote.id)} onDelete={() => { onDelete(selectedQuote.id); setSelectedQuote(null) }} onComment={(text) => onComment(selectedQuote.id, text)} />
           </div>
