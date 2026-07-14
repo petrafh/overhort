@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists users (
   id uuid primary key default gen_random_uuid(),
-  email text not null unique,
+  email text unique,
   username text not null unique check (username ~ '^[a-z0-9_]{3,24}$'),
   name text not null check (char_length(name) between 2 and 80),
   password_hash text not null,
@@ -10,6 +10,8 @@ create table if not exists users (
   avatar_url text,
   created_at timestamptz not null default now()
 );
+
+alter table users alter column email drop not null;
 
 create table if not exists friendships (
   user_low_id uuid not null references users(id) on delete cascade,

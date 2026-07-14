@@ -353,6 +353,7 @@ function useBodyScrollLock(locked: boolean) {
 function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => void; onUpdated: (changes: Partial<User>) => void; showToast: (message: string) => void }) {
   const [name, setName] = useState(currentUser.name)
   const [email, setEmail] = useState(currentUser.email ?? '')
+  const [bio, setBio] = useState(currentUser.bio)
   const [avatarPreview, setAvatarPreview] = useState(currentUser.avatar)
   const [avatarData, setAvatarData] = useState<string>()
   const [saving, setSaving] = useState(false)
@@ -380,13 +381,14 @@ function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => vo
     setSaving(true)
     setError('')
     try {
-      const updated = await api<{ id: string; name: string; email: string; username: string; bio: string; avatarUrl: string | null }>('/me', {
+      const updated = await api<{ id: string; name: string; email: string | null; username: string; bio: string; avatarUrl: string | null }>('/me', {
         method: 'PATCH',
-        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), ...(avatarData ? { avatarUrl: avatarData } : {}) }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), bio: bio.trim(), ...(avatarData ? { avatarUrl: avatarData } : {}) }),
       })
       const changes: Partial<User> = {
         name: updated.name,
-        email: updated.email,
+        email: updated.email ?? undefined,
+        bio: updated.bio,
         initials: updated.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
         ...(updated.avatarUrl ? { avatar: `url(${updated.avatarUrl}) center / cover` } : {}),
       }
@@ -418,7 +420,8 @@ function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => vo
             </div>
           </div>
           <label className="profile-field"><span>Fullt navn</span><input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} required /></label>
-          <label className="profile-field"><span>E-post</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+          <label className="profile-field"><span>E-post <em>valgfritt</em></span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="deg@eksempel.no" /></label>
+          <label className="profile-field"><span>Biografi <em>valgfritt</em></span><textarea value={bio} onChange={(event) => setBio(event.target.value)} maxLength={120} rows={3} placeholder="Fortell litt om deg selv …" /><small>{bio.length}/120</small></label>
           <label className="profile-field opacity-60"><span>Brukernavn · kan ikke endres enda</span><input value={`@${currentUser.username}`} disabled /></label>
           <div aria-live="polite" className="min-h-5">{error && <p className="text-xs text-[#a75d50]">{error}</p>}</div>
           <div className="flex gap-3 pt-1"><button type="button" onClick={onClose} className="flex-1 rounded-full border border-black/15 py-3 text-xs font-semibold">Avbryt</button><button type="submit" disabled={saving || processingImage} className="flex-1 rounded-full bg-black py-3 text-xs font-semibold text-white disabled:bg-black/40">{saving ? 'Lagrer …' : 'Lagre endringer'}</button></div>
@@ -676,7 +679,7 @@ function OverhortApp() {
     Promise.all([
       api<ApiPublicUser[]>('/friends'),
       api<(ApiPublicUser & { requestId: string })[]>('/friend-requests'),
-      api<{ id: string; name: string; username: string; email: string; bio: string; avatarUrl: string | null }>('/me'),
+      api<{ id: string; name: string; username: string; email: string | null; bio: string; avatarUrl: string | null }>('/me'),
     ]).then(([friendRows, requestRows, me]) => {
       setAcceptedFriends(friendRows.map((user) => ({ ...apiUserToUser(user), isFriend: true })))
       setRequests(requestRows.map((user) => ({ ...apiUserToUser(user), requestId: user.requestId })))
@@ -684,7 +687,7 @@ function OverhortApp() {
         id: me.id,
         name: me.name,
         username: me.username,
-        email: me.email,
+        email: me.email ?? undefined,
         bio: me.bio,
         initials: me.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
         ...(me.avatarUrl ? { avatar: `url(${me.avatarUrl}) center / cover` } : {}),
@@ -766,7 +769,7 @@ function AuthChoice({ onLogin, onRegister }: { onLogin: () => void; onRegister: 
 
 interface AuthUserResponse {
   id: string
-  email: string
+  email: string | null
   username: string
   name: string
   bio: string
@@ -774,7 +777,7 @@ interface AuthUserResponse {
 }
 
 function LoginScreen({ onBack, onComplete }: { onBack: () => void; onComplete: (user: AuthUserResponse, token: string) => void }) {
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -786,7 +789,7 @@ function LoginScreen({ onBack, onComplete }: { onBack: () => void; onComplete: (
     try {
       const result = await api<{ user: AuthUserResponse; token: string }>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        body: JSON.stringify({ identifier: identifier.trim(), password }),
       })
       onComplete(result.user, result.token)
     } catch (error) {
@@ -800,9 +803,9 @@ function LoginScreen({ onBack, onComplete }: { onBack: () => void; onComplete: (
       <div className="pointer-events-none absolute -left-24 -top-28 h-80 w-80 rounded-full bg-[#76608a]/12 blur-3xl" />
       <section className="relative w-full max-w-[440px] rounded-[28px] border border-black/10 bg-white p-7 shadow-card sm:p-10">
         <div className="flex items-center justify-between"><button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-black/45"><ChevronLeft size={17} /> Tilbake</button><Wordmark /></div>
-        <div className="mt-9"><p className="eyebrow">Velkommen tilbake</p><h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em]">Logg inn</h1><p className="mt-2 text-sm text-black/45">Bruk e-posten og passordet til profilen din.</p></div>
+        <div className="mt-9"><p className="eyebrow">Velkommen tilbake</p><h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em]">Logg inn</h1><p className="mt-2 text-sm text-black/45">Bruk brukernavn eller e-post sammen med passordet ditt.</p></div>
         <form onSubmit={login} className="mt-7 space-y-4">
-          <label className="profile-field"><span>E-post</span><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError('') }} autoComplete="email" autoFocus placeholder="deg@eksempel.no" required /></label>
+          <label className="profile-field"><span>Brukernavn eller e-post</span><input value={identifier} onChange={(event) => { setIdentifier(event.target.value); setError('') }} autoComplete="username" autoFocus placeholder="@brukernavn" required /></label>
           <label className="profile-field"><span>Passord</span><input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError('') }} autoComplete="current-password" placeholder="Passordet ditt" required /></label>
           <div aria-live="polite" className="min-h-5">{error && <p className="text-xs text-[#a75d50]">{error}</p>}</div>
           <button type="submit" disabled={submitting} className="w-full rounded-full bg-black py-3.5 text-sm font-semibold text-white transition hover:bg-black/80 disabled:bg-black/40">{submitting ? 'Logger inn …' : 'Logg inn'}</button>
@@ -813,7 +816,7 @@ function LoginScreen({ onBack, onComplete }: { onBack: () => void; onComplete: (
   )
 }
 
-function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfile, credentials: { email: string; password: string; avatarUrl?: string }) => Promise<void>; onBack: () => void }) {
+function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfile, credentials: { email?: string; password: string; avatarUrl?: string }) => Promise<void>; onBack: () => void }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -863,7 +866,7 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
         initials,
         avatar,
         bio: bio.trim() || 'Ny på Overhørt.',
-      }, { email: email.trim().toLowerCase(), password, ...(avatarData ? { avatarUrl: avatarData } : {}) })
+      }, { ...(email.trim() ? { email: email.trim().toLowerCase() } : {}), password, ...(avatarData ? { avatarUrl: avatarData } : {}) })
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Kunne ikke opprette profilen.')
       setSubmitting(false)
@@ -919,8 +922,8 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
                   <div className="flex items-center"><span className="text-sm text-black/35">@</span><input value={username} onChange={(event) => { setUsername(event.target.value); setError('') }} autoComplete="username" placeholder="kari_nordmann" required /></div>
                 </label>
                 <label className="profile-field">
-                  <span>E-post</span>
-                  <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError('') }} autoComplete="email" placeholder="deg@eksempel.no" required />
+                  <span>E-post <em>valgfritt</em></span>
+                  <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError('') }} autoComplete="email" placeholder="deg@eksempel.no" />
                 </label>
               </div>
               <label className="profile-field">
@@ -982,7 +985,7 @@ export default function App() {
         id: user.id,
         name: user.name,
         username: user.username,
-        email: user.email,
+        email: user.email ?? undefined,
         bio: user.bio,
         initials: user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
         avatar: user.avatarUrl ? `url(${user.avatarUrl}) center / cover` : 'linear-gradient(145deg, #1d2530 0%, #64707c 100%)',

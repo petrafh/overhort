@@ -19,10 +19,7 @@ app.get('/api/health', asyncRoute(async (_req, res) => {
   res.json({ ok: true, database: 'neon', time: result.time })
 }))
 
-const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(100),
-})
+const passwordSchema = z.string().min(8).max(100)
 
 const avatarDataUrlSchema = z.string().max(600_000).refine(
   (value) => /^data:image\/(jpeg|png|webp);base64,/.test(value),
@@ -30,7 +27,9 @@ const avatarDataUrlSchema = z.string().max(600_000).refine(
 )
 
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
-  const body = credentialsSchema.extend({
+  const body = z.object({
+    email: z.union([z.string().email(), z.literal('')]).optional(),
+    password: passwordSchema,
     name: z.string().min(2).max(80),
     username: z.string().regex(/^[a-z0-9_]{3,24}$/),
     bio: z.string().max(120).optional().default(''),
@@ -39,18 +38,22 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const passwordHash = await bcrypt.hash(body.password, 12)
   const rows = await sql`
     insert into users (email, username, name, password_hash, bio, avatar_url)
-    values (${body.email.toLowerCase()}, ${body.username}, ${body.name}, ${passwordHash}, ${body.bio}, ${body.avatarUrl ?? null})
+    values (${body.email?.toLowerCase() || null}, ${body.username}, ${body.name}, ${passwordHash}, ${body.bio}, ${body.avatarUrl ?? null})
     returning id, email, username, name, bio, avatar_url as "avatarUrl"
   `
   res.status(201).json({ user: rows[0], token: createToken(String(rows[0].id)) })
 }))
 
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
-  const body = credentialsSchema.parse(req.body)
-  const rows = await sql`select id, email, username, name, bio, avatar_url as "avatarUrl", password_hash from users where email = ${body.email.toLowerCase()} limit 1`
+  const body = z.object({ identifier: z.string().trim().min(3).max(120), password: passwordSchema }).parse(req.body)
+  const identifier = body.identifier.toLowerCase().replace(/^@/, '')
+  const rows = await sql`
+    select id, email, username, name, bio, avatar_url as "avatarUrl", password_hash
+    from users where lower(email) = ${identifier} or lower(username) = ${identifier} limit 1
+  `
   const user = rows[0]
   if (!user || !await bcrypt.compare(body.password, String(user.password_hash))) {
-    res.status(401).json({ error: 'Feil e-post eller passord.' })
+    res.status(401).json({ error: 'Feil brukernavn, e-post eller passord.' })
     return
   }
   const { password_hash: _, ...safeUser } = user
@@ -72,14 +75,16 @@ app.get('/api/me', requireAuth, asyncRoute(async (req, res) => {
 app.patch('/api/me', requireAuth, asyncRoute(async (req, res) => {
   const body = z.object({
     name: z.string().trim().min(2).max(80),
-    email: z.string().email(),
+    email: z.union([z.string().email(), z.literal('')]),
+    bio: z.string().trim().max(120),
     avatarUrl: avatarDataUrlSchema.optional(),
   }).parse(req.body)
   const hasNewAvatar = body.avatarUrl !== undefined
   const rows = await sql`
     update users
     set name = ${body.name},
-      email = ${body.email.toLowerCase()},
+      email = ${body.email.toLowerCase() || null},
+      bio = ${body.bio},
       avatar_url = case when ${hasNewAvatar} then ${body.avatarUrl ?? null} else avatar_url end
     where id = ${req.userId}
     returning id, email, username, name, bio, avatar_url as "avatarUrl"
