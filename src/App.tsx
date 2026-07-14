@@ -145,7 +145,7 @@ function QuoteCard({ quote, onLike, onDelete, onComment }: { quote: Quote; onLik
       <div className="quote-panel" style={{ backgroundColor: quote.color }}>
         <span className="absolute left-5 top-2 font-display text-7xl leading-none text-white/15">“</span>
         <p className="relative z-10 max-w-[88%] text-center font-display text-[29px] leading-[1.14] tracking-[-0.015em] text-white sm:text-[34px]">{quote.text}</p>
-        <p className="absolute bottom-5 right-6 text-[11px] font-semibold uppercase tracking-[0.17em] text-white/70">— {quote.subject.name.split(' ')[0]}</p>
+        <p className="absolute bottom-5 right-6 text-[11px] font-medium text-white/70">— {quote.subject.name.split(' ')[0]}</p>
       </div>
 
       <div className="px-1 pt-4 sm:px-5 sm:pb-5">
@@ -192,8 +192,7 @@ function Feed({ quotes, onLike, onComment, goFriends, requestCount }: { quotes: 
       <main className="page-shell">
         <div className="mb-8 hidden items-end justify-between lg:flex">
           <div>
-            <p className="eyebrow">Mandag, 13. juli</p>
-            <h1 className="page-title">Siste nytt</h1>
+            <h1 className="page-title mt-0">Siste nytt</h1>
           </div>
           <button onClick={goFriends} className="relative grid h-11 w-11 place-items-center rounded-full border border-black/10 bg-white">
             <Bell size={19} />
@@ -201,7 +200,6 @@ function Feed({ quotes, onLike, onComment, goFriends, requestCount }: { quotes: 
           </button>
         </div>
         <div className="mb-6 pt-5 lg:hidden">
-          <p className="eyebrow">Fra vennene dine</p>
           <h1 className="text-[26px] font-semibold tracking-[-0.04em]">Siste nytt</h1>
         </div>
         <div className="space-y-8 sm:space-y-7">
@@ -238,8 +236,7 @@ function CreateQuote({ onPublish, onCancel }: { onPublish: (text: string, friend
 
       <div className="mt-9 grid gap-10 lg:grid-cols-[1fr_0.8fr] lg:gap-14">
         <section>
-          <p className="eyebrow">Nytt minne</p>
-          <h1 className="page-title mt-1">Hva ble overhørt?</h1>
+          <h1 className="page-title mt-0">Hva ble overhørt?</h1>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-black/50">Skriv det akkurat som det ble sagt. Bare vennene til personen du velger kan se sitatet.</p>
           <div className="relative mt-8 grid min-h-[330px] place-items-center overflow-hidden rounded-[26px] px-8 py-14 shadow-card" style={{ backgroundColor: color }}>
             <span className="absolute left-6 top-3 font-display text-8xl text-white/15">“</span>
@@ -404,7 +401,7 @@ function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => vo
     <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onMouseDown={onClose}>
       <section className="my-6 w-full max-w-lg rounded-[26px] bg-white p-6 shadow-2xl sm:p-8" onMouseDown={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between">
-          <div><p className="eyebrow">Innstillinger</p><h2 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">Rediger profil</h2></div>
+          <h2 className="text-2xl font-semibold tracking-[-0.035em]">Rediger profil</h2>
           <button onClick={onClose} className="icon-button" aria-label="Lukk"><X size={19} /></button>
         </div>
         <form onSubmit={save} className="mt-7 space-y-4">
@@ -446,7 +443,6 @@ function Profile({ quotes, friendCount, requestCount, onFriends, onLogout, onDel
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-xl font-semibold tracking-tight md:text-2xl">{currentUser.name}</h1>
-                <span className="rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-black/45">privat profil</span>
               </div>
               <p className="mt-1 text-sm text-black/45">@{currentUser.username}</p>
               <div className="mt-4 hidden items-center gap-8 text-sm md:flex">
@@ -475,8 +471,7 @@ function Profile({ quotes, friendCount, requestCount, onFriends, onLogout, onDel
         <section className="mt-10 border-t border-black/10 pt-6 md:mt-14">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <p className="eyebrow">Ting jeg har sagt</p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight">Mine sitater</h2>
+              <h2 className="text-xl font-semibold tracking-tight">Mine sitater</h2>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-black/40"><LockKeyhole size={13} /> Kun venner</div>
           </div>
@@ -602,7 +597,7 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: Friend
     <>
       <MobileHeader title="Venner" onFriends={() => undefined} requestCount={requests.length} />
       <main className="page-shell-wide">
-        <div className="hidden lg:block"><p className="eyebrow">Ditt nettverk</p><h1 className="page-title">Venner</h1></div>
+        <div className="hidden lg:block"><h1 className="page-title mt-0">Venner</h1></div>
         <section className="pt-6 lg:pt-9">
           <div className="flex items-center justify-between"><h2 className="text-base font-semibold">Venneforespørsler</h2>{requests.length > 0 && <span className="rounded-full bg-[#a75d50] px-2 py-0.5 text-[10px] font-bold text-white">{requests.length}</span>}</div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -620,8 +615,7 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: Friend
 
         <section className="mt-10 border-t border-black/10 pt-7">
           <div>
-            <p className="eyebrow">Oppdag</p>
-            <h2 className="mt-1 text-lg font-semibold">Finn venner</h2>
+            <h2 className="text-lg font-semibold">Finn venner</h2>
             <p className="mt-1 text-xs text-black/45">Søk etter navn eller eksakt brukernavn.</p>
           </div>
           <label className="mt-5 flex items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3.5 focus-within:border-black">
@@ -749,8 +743,7 @@ function AuthChoice({ onLogin, onRegister }: { onLogin: () => void; onRegister: 
       <section className="relative w-full max-w-[470px] rounded-[28px] border border-black/10 bg-white p-7 shadow-card sm:p-10">
         <div className="flex justify-center"><Wordmark /></div>
         <div className="mt-10 text-center">
-          <p className="eyebrow">Demo-tilgang godkjent</p>
-          <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em]">Hvordan vil du fortsette?</h1>
+          <h1 className="text-[32px] font-semibold tracking-[-0.045em]">Hvordan vil du fortsette?</h1>
           <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-black/50">Logg inn hvis du allerede har en konto, eller opprett en ny profil.</p>
         </div>
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -806,7 +799,7 @@ function LoginScreen({ onBack, onComplete }: { onBack: () => void; onComplete: (
       <div className="pointer-events-none absolute -left-24 -top-28 h-80 w-80 rounded-full bg-[#76608a]/12 blur-3xl" />
       <section className="relative w-full max-w-[440px] rounded-[28px] border border-black/10 bg-white p-7 shadow-card sm:p-10">
         <div className="flex items-center justify-between"><button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-black/45"><ChevronLeft size={17} /> Tilbake</button><Wordmark /></div>
-        <div className="mt-9"><p className="eyebrow">Velkommen tilbake</p><h1 className="mt-2 text-[32px] font-semibold tracking-[-0.045em]">Logg inn</h1><p className="mt-2 text-sm text-black/45">Bruk brukernavn eller e-post sammen med passordet ditt.</p></div>
+        <div className="mt-9"><h1 className="text-[32px] font-semibold tracking-[-0.045em]">Logg inn</h1><p className="mt-2 text-sm text-black/45">Bruk brukernavn eller e-post sammen med passordet ditt.</p></div>
         <form onSubmit={login} className="mt-7 space-y-4">
           <label className="profile-field"><span>Brukernavn eller e-post</span><input value={identifier} onChange={(event) => { setIdentifier(event.target.value); setError('') }} autoComplete="username" autoFocus placeholder="@brukernavn" required /></label>
           <label className="profile-field"><span>Passord</span><input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError('') }} autoComplete="current-password" placeholder="Passordet ditt" required /></label>
@@ -882,15 +875,7 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
       <div className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-[#a17b3f]/10 blur-3xl" />
 
       <div className="relative mx-auto w-full max-w-[720px]">
-        <div className="flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-black/45"><ChevronLeft size={17} /> Tilbake</button>
-          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-black/35">
-            <span className="grid h-5 w-5 place-items-center rounded-full bg-black text-white">1</span>
-            <span className="h-px w-5 bg-black/15" />
-            <span className="grid h-5 w-5 place-items-center rounded-full bg-black text-white">2</span>
-            Profil
-          </div>
-        </div>
+        <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-black/45"><ChevronLeft size={17} /> Tilbake</button>
 
         <section className="mt-9 rounded-[28px] border border-black/10 bg-white p-6 shadow-card sm:mt-12 sm:p-10">
           <div>
@@ -906,7 +891,7 @@ function ProfileSetup({ onComplete, onBack }: { onComplete: (profile: DemoProfil
                 <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={processingImage} onChange={(event) => chooseProfileImage(event.target.files?.[0])} />
               </label>
               <p className="mt-2 text-[9px] leading-relaxed text-black/35">JPG, PNG eller WebP · maks 8 MB</p>
-              <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.12em] text-black/35">Eller velg farge</p>
+              <p className="mt-5 text-xs text-black/40">Eller velg en farge</p>
               <div className="mt-5 flex flex-wrap gap-2">
                 {avatarChoices.map((choice) => (
                   <button key={choice} type="button" onClick={() => { setAvatar(choice); setAvatarData(undefined) }} aria-label="Velg profilfarge" className={`h-7 w-7 rounded-full transition ${avatar === choice ? 'ring-2 ring-black ring-offset-2' : 'hover:scale-110'}`} style={{ background: choice }} />
@@ -1067,7 +1052,6 @@ export default function App() {
           </button>
         </form>
 
-        <p className="mt-7 text-center text-[10px] uppercase tracking-[0.14em] text-black/30">Kun for inviterte testere</p>
       </section>
     </main>
   )
