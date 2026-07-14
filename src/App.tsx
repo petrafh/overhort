@@ -9,7 +9,7 @@ import {
   KeyRound,
   LockKeyhole,
   LogIn,
-  Menu,
+  LogOut,
   MessageCircle,
   MoreHorizontal,
   Plus,
@@ -430,7 +430,7 @@ function EditProfileModal({ onClose, onUpdated, showToast }: { onClose: () => vo
   )
 }
 
-function Profile({ quotes, friendCount, requestCount, onFriends, onDelete, onLike, onComment, showToast, onProfileUpdated }: { quotes: Quote[]; friendCount: number; requestCount: number; onFriends: () => void; onDelete: (id: string) => void; onLike: (id: string) => void; onComment: (id: string, text: string) => void; showToast: (message: string) => void; onProfileUpdated: (changes: Partial<User>) => void }) {
+function Profile({ quotes, friendCount, requestCount, onFriends, onLogout, onDelete, onLike, onComment, showToast, onProfileUpdated }: { quotes: Quote[]; friendCount: number; requestCount: number; onFriends: () => void; onLogout: () => void; onDelete: (id: string) => void; onLike: (id: string) => void; onComment: (id: string, text: string) => void; showToast: (message: string) => void; onProfileUpdated: (changes: Partial<User>) => void }) {
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
   const [editing, setEditing] = useState(false)
   useBodyScrollLock(Boolean(selectedQuote) || editing)
@@ -449,25 +449,26 @@ function Profile({ quotes, friendCount, requestCount, onFriends, onDelete, onLik
                 <span className="rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-black/45">privat profil</span>
               </div>
               <p className="mt-1 text-sm text-black/45">@{currentUser.username}</p>
-              <div className="mt-4 hidden items-center gap-8 text-sm sm:flex">
+              <div className="mt-4 hidden items-center gap-8 text-sm md:flex">
                 <p><span className="font-semibold">{ownQuotes.length}</span> <span className="text-black/45">sitater</span></p>
                 <button onClick={onFriends}><span className="font-semibold">{friendCount}</span> <span className="text-black/45">venner</span></button>
               </div>
             </div>
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="hidden flex-col items-stretch gap-2 md:flex lg:flex-row">
               <button className="relative rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold" onClick={onFriends}><UserPlus size={15} className="mr-1.5 inline" /> Finn venner{requestCount > 0 && <span className="ml-2 rounded-full bg-[#a75d50] px-1.5 py-0.5 text-[9px] text-white">{requestCount}</span>}</button>
               <button className="rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold" onClick={() => setEditing(true)}>Rediger profil</button>
+              <button className="rounded-full border border-black/15 px-4 py-2.5 text-xs font-semibold text-black/55" onClick={onLogout}><LogOut size={15} className="mr-1.5 inline" /> Logg ut</button>
             </div>
-            <button className="sm:hidden"><Menu size={22} /></button>
           </div>
           <p className="mt-6 max-w-md text-sm leading-relaxed">{currentUser.bio}</p>
-          <div className="mt-5 flex items-center gap-8 border-y border-black/10 py-4 text-center text-sm sm:hidden">
+          <div className="mt-5 flex items-center gap-8 border-y border-black/10 py-4 text-center text-sm md:hidden">
             <p className="flex-1"><span className="block font-semibold">{ownQuotes.length}</span><span className="text-xs text-black/45">sitater</span></p>
             <button onClick={onFriends} className="flex-1 border-l border-black/10"><span className="block font-semibold">{friendCount}</span><span className="text-xs text-black/45">venner</span></button>
           </div>
-          <div className="mt-5 flex gap-3 sm:hidden">
+          <div className="mt-5 flex gap-3 md:hidden">
             <button className="flex-1 rounded-full bg-black py-3 text-xs font-semibold text-white" onClick={() => setEditing(true)}>Rediger profil</button>
             <button onClick={onFriends} className="relative grid h-10 w-10 place-items-center rounded-full border border-black/15" aria-label="Finn venner"><UserPlus size={17} />{requestCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#a75d50] px-1 text-[9px] font-bold text-white">{requestCount}</span>}</button>
+            <button onClick={onLogout} className="grid h-10 w-10 place-items-center rounded-full border border-black/15 text-black/55" aria-label="Logg ut"><LogOut size={17} /></button>
           </div>
         </section>
 
@@ -669,7 +670,7 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: Friend
   )
 }
 
-function OverhortApp() {
+function OverhortApp({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('feed')
   const [quotes, setQuotes] = useState(initialQuotes)
   const [requests, setRequests] = useState<FriendRequestUser[]>(pendingRequests as FriendRequestUser[])
@@ -719,10 +720,10 @@ function OverhortApp() {
   }
   const content = useMemo(() => {
     if (activeTab === 'create') return <CreateQuote onPublish={publish} onCancel={() => setActiveTab('feed')} />
-    if (activeTab === 'profile') return <Profile quotes={quotes} friendCount={acceptedFriends.length} requestCount={requests.length} onFriends={() => setActiveTab('friends')} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} onProfileUpdated={(changes) => { Object.assign(currentUser, changes); localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(currentUser)); setProfileRevision((value) => value + 1) }} />
+    if (activeTab === 'profile') return <Profile quotes={quotes} friendCount={acceptedFriends.length} requestCount={requests.length} onFriends={() => setActiveTab('friends')} onLogout={onLogout} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} onProfileUpdated={(changes) => { Object.assign(currentUser, changes); localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(currentUser)); setProfileRevision((value) => value + 1) }} />
     if (activeTab === 'friends') return <Friends requests={requests} accepted={acceptedFriends} onAccept={async (user, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }); setRequests((items) => items.filter((item) => item.id !== user.id)); setAcceptedFriends((items) => [...items.filter((item) => item.id !== user.id), { ...user, isFriend: true }]); showToast(`Du og ${user.name.split(' ')[0]} er nå venner`) }} onDecline={async (userId, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'declined' }) }); setRequests((items) => items.filter((item) => item.id !== userId)) }} />
     return <Feed quotes={quotes} onLike={like} onComment={comment} goFriends={() => setActiveTab('friends')} requestCount={requests.length} />
-  }, [activeTab, quotes, requests, acceptedFriends, profileRevision])
+  }, [activeTab, quotes, requests, acceptedFriends, profileRevision, onLogout])
 
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-[#101010]">
@@ -1018,7 +1019,13 @@ export default function App() {
     }} />
   }
 
-  if (hasAccess && hasProfile) return <OverhortApp />
+  if (hasAccess && hasProfile) return <OverhortApp onLogout={() => {
+    localStorage.removeItem('overhort_token')
+    localStorage.removeItem(DEMO_PROFILE_STORAGE_KEY)
+    sessionStorage.removeItem(AUTH_SESSION_KEY)
+    setAuthMode('choice')
+    setHasProfile(false)
+  }} />
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#f7f7f5] px-5 py-10 text-[#101010]">
