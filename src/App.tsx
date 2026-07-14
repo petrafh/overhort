@@ -218,12 +218,13 @@ function Feed({ quotes, onLike, onComment, goFriends, requestCount }: { quotes: 
   )
 }
 
-function CreateQuote({ onPublish, onCancel }: { onPublish: (text: string, friend: User, color: string) => void; onCancel: () => void }) {
+function CreateQuote({ acceptedFriends, onPublish, onCancel }: { acceptedFriends: User[]; onPublish: (text: string, friend: User, color: string) => Promise<void>; onCancel: () => void }) {
   const [text, setText] = useState('')
   const [selected, setSelected] = useState<User | null>(null)
   const [query, setQuery] = useState('')
   const [color, setColor] = useState(quoteColors[1])
-  const matches = friends.filter((friend) => `${friend.name} ${friend.username}`.toLowerCase().includes(query.toLowerCase()))
+  const [publishing, setPublishing] = useState(false)
+  const matches = acceptedFriends.filter((friend) => `${friend.name} ${friend.username}`.toLowerCase().includes(query.toLowerCase()))
   const canPublish = text.trim().length > 0 && selected
 
   return (
@@ -231,7 +232,7 @@ function CreateQuote({ onPublish, onCancel }: { onPublish: (text: string, friend
       <div className="flex items-center justify-between pt-5 lg:pt-0">
         <button onClick={onCancel} className="flex items-center gap-1 text-sm font-medium text-black/55"><ChevronLeft size={18} /> Avbryt</button>
         <p className="text-sm font-semibold lg:hidden">Nytt sitat</p>
-        <button disabled={!canPublish} onClick={() => selected && onPublish(text.trim(), selected, color)} className="rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white transition disabled:bg-black/10 disabled:text-black/30">Publiser</button>
+        <button disabled={!canPublish || publishing} onClick={async () => { if (!selected) return; setPublishing(true); await onPublish(text.trim(), selected, color); setPublishing(false) }} className="rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white transition disabled:bg-black/10 disabled:text-black/30">{publishing ? 'Publiserer …' : 'Publiser'}</button>
       </div>
 
       <div className="mt-9 grid gap-10 lg:grid-cols-[1fr_0.8fr] lg:gap-14">
@@ -525,6 +526,22 @@ interface ApiPublicUser {
   friendCount?: number
 }
 
+interface ApiQuote {
+  id: string
+  text: string
+  color: string
+  created_at: string
+  subject: ApiPublicUser
+  postedBy: ApiPublicUser
+  likes: number
+  liked: boolean
+  comments: Array<{
+    id: string
+    text: string
+    author: ApiPublicUser
+  }>
+}
+
 type FriendRequestUser = User & { requestId: string }
 
 const apiUserToUser = (user: ApiPublicUser): User => ({
@@ -538,7 +555,114 @@ const apiUserToUser = (user: ApiPublicUser): User => ({
   isFriend: false,
 })
 
+const apiQuoteToQuote = (quote: ApiQuote): Quote => ({
+  id: quote.id,
+  text: quote.text,
+  color: quote.color,
+  timestamp: new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short' }).format(new Date(quote.created_at)),
+  subject: apiUserToUser(quote.subject),
+  postedBy: apiUserToUser(quote.postedBy),
+  likes: Number(quote.likes),
+  liked: Boolean(quote.liked),
+  comments: quote.comments.map((comment) => ({ id: comment.id, text: comment.text, author: apiUserToUser(comment.author) })),
+})
+
+function FriendProfile({ userId, onBack }: { userId: string; onBack: () => void }) {
+  const [profile, setProfile] = useState<User | null>(null)
+  const [quotes, setQuotes] = useState<Quote[]>([])
+  const [canSeeQuotes, setCanSeeQuotes] = useState(false)
+  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useBodyScrollLock(Boolean(selectedQuote))
+
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    api<{ user: ApiPublicUser & { isFriend: boolean }; canSeeQuotes: boolean; quotes: ApiQuote[] }>(`/users/${userId}`)
+      .then((result) => {
+        setProfile({ ...apiUserToUser(result.user), isFriend: result.user.isFriend })
+        setCanSeeQuotes(result.canSeeQuotes)
+        setQuotes(result.quotes.map(apiQuoteToQuote))
+      })
+      .catch((error) => setError(error instanceof Error ? error.message : 'Kunne ikke åpne profilen.'))
+      .finally(() => setLoading(false))
+  }, [userId])
+
+  const toggleLike = (id: string) => {
+    const quote = quotes.find((item) => item.id === id)
+    if (!quote) return
+    setQuotes((items) => items.map((item) => item.id === id ? { ...item, liked: !item.liked, likes: item.likes + (item.liked ? -1 : 1) } : item))
+    void api(`/quotes/${id}/likes`, { method: quote.liked ? 'DELETE' : 'POST' }).catch(() => {
+      setQuotes((items) => items.map((item) => item.id === id ? quote : item))
+    })
+  }
+
+  const addComment = (id: string, text: string) => {
+    void api<{ id: string }>(`/quotes/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }).then((comment) => {
+      setQuotes((items) => items.map((item) => item.id === id ? { ...item, comments: [...item.comments, { id: comment.id, author: currentUser, text }] } : item))
+    })
+  }
+
+  const activeQuote = selectedQuote ? quotes.find((quote) => quote.id === selectedQuote.id) ?? selectedQuote : null
+
+  return (
+    <>
+      <header className="sticky top-0 z-20 flex h-16 items-center border-b border-black/5 bg-[#f7f7f5]/90 px-5 backdrop-blur-xl lg:hidden">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm font-medium"><ChevronLeft size={19} /> Venner</button>
+      </header>
+      <main className="page-shell-wide">
+        <button onClick={onBack} className="mb-8 hidden items-center gap-1 text-sm text-black/50 lg:flex"><ChevronLeft size={18} /> Tilbake til venner</button>
+        {loading && <div className="grid min-h-[50vh] place-items-center"><span className="h-6 w-6 animate-spin rounded-full border-2 border-black/15 border-t-black" /></div>}
+        {error && <div className="rounded-2xl border border-black/10 bg-white p-8 text-center text-sm text-[#a75d50]">{error}</div>}
+        {!loading && profile && (
+          <>
+            <section className="pt-7 lg:pt-0">
+              <div className="flex items-center gap-5 md:gap-8">
+                <Avatar user={profile} size="xl" ring />
+                <div className="min-w-0">
+                  <h1 className="truncate text-2xl font-semibold tracking-tight">{profile.name}</h1>
+                  <p className="mt-1 text-sm text-black/45">@{profile.username}</p>
+                  <div className="mt-4 flex gap-7 text-sm"><p><span className="font-semibold">{quotes.length}</span> <span className="text-black/45">sitater</span></p><p><span className="font-semibold">{profile.friendCount}</span> <span className="text-black/45">venner</span></p></div>
+                </div>
+              </div>
+              {profile.bio && <p className="mt-6 max-w-md text-sm leading-relaxed">{profile.bio}</p>}
+            </section>
+
+            <section className="mt-10 border-t border-black/10 pt-6 md:mt-14">
+              <div className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold tracking-tight">Sitater</h2><div className="flex items-center gap-1.5 text-[11px] text-black/40"><LockKeyhole size={13} /> Kun venner</div></div>
+              {!canSeeQuotes ? (
+                <div className="rounded-2xl border border-dashed border-black/15 py-16 text-center"><LockKeyhole size={21} className="mx-auto text-black/25" /><p className="mt-3 text-sm font-semibold">Sitater er bare synlige for venner</p></div>
+              ) : quotes.length ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:gap-4">
+                  {quotes.map((quote) => (
+                    <button key={quote.id} onClick={() => setSelectedQuote(quote)} className="group relative aspect-square overflow-hidden rounded-xl p-4 text-left sm:rounded-2xl" style={{ backgroundColor: quote.color }}>
+                      <p className="line-clamp-5 font-display text-lg leading-tight text-white sm:text-2xl">“{quote.text}”</p>
+                      <div className="absolute inset-x-4 bottom-3 flex items-center justify-between text-[10px] text-white/65"><span>av @{quote.postedBy.username}</span><span className="flex items-center gap-1"><Heart size={11} />{quote.likes}</span></div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-black/15 py-16 text-center"><p className="text-sm font-semibold">Ingen sitater enda</p></div>
+              )}
+            </section>
+          </>
+        )}
+      </main>
+      {activeQuote && (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/65 p-4 backdrop-blur-sm" onMouseDown={() => setSelectedQuote(null)}>
+          <div className="relative my-12 w-full max-w-xl" onMouseDown={(event) => event.stopPropagation()}>
+            <button onClick={() => setSelectedQuote(null)} className="absolute -top-12 right-0 grid h-9 w-9 place-items-center rounded-full bg-white text-black"><X size={19} /></button>
+            <QuoteCard quote={activeQuote} onLike={() => toggleLike(activeQuote.id)} onComment={(text) => addComment(activeQuote.id, text)} />
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 function Friends({ requests, accepted, onAccept, onDecline }: { requests: FriendRequestUser[]; accepted: User[]; onAccept: (user: User, requestId: string) => Promise<void>; onDecline: (userId: string, requestId: string) => Promise<void> }) {
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [friendQuery, setFriendQuery] = useState('')
   const [discoverQuery, setDiscoverQuery] = useState('')
   const [results, setResults] = useState<UserSearchResult[]>([])
@@ -593,6 +717,8 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: Friend
     }
   }
 
+  if (selectedUserId) return <FriendProfile userId={selectedUserId} onBack={() => setSelectedUserId(null)} />
+
   return (
     <>
       <MobileHeader title="Venner" onFriends={() => undefined} requestCount={requests.length} />
@@ -633,7 +759,7 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: Friend
               return (
                 <div key={result.id} className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-4">
                   <Avatar user={user} size="md" />
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{result.name}</p><p className="truncate text-xs text-black/40">@{result.username}</p></div>
+                  <button onClick={() => setSelectedUserId(result.id)} className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-semibold">{result.name}</p><p className="truncate text-xs text-black/40">@{result.username}</p></button>
                   {result.relationshipStatus === 'none' && <button onClick={() => sendRequest(result.id)} className="rounded-full bg-black px-4 py-2 text-[11px] font-semibold text-white">Legg til</button>}
                   {result.relationshipStatus === 'sent' && <span className="rounded-full bg-black/5 px-3 py-2 text-[10px] font-semibold text-black/40">Sendt</span>}
                   {result.relationshipStatus === 'received' && <button onClick={() => acceptSearchRequest(result)} className="rounded-full bg-black px-4 py-2 text-[11px] font-semibold text-white">Godta</button>}
@@ -648,7 +774,7 @@ function Friends({ requests, accepted, onAccept, onDecline }: { requests: Friend
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-base font-semibold">Alle venner <span className="ml-1 text-black/35">{accepted.length}</span></h2><label className="flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2.5"><Search size={16} className="text-black/35"/><input value={friendQuery} onChange={(e) => setFriendQuery(e.target.value)} placeholder="Filtrer venner" className="w-full bg-transparent text-xs outline-none sm:w-40" /></label></div>
           <div className="mt-5 divide-y divide-black/5">
             {visibleFriends.map((user) => (
-              <div key={user.id} className="flex items-center gap-3 py-4"><Avatar user={user} size="md"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{user.name}</p><p className="truncate text-xs text-black/40">{user.bio}</p></div><button className="rounded-full border border-black/10 px-4 py-2 text-[11px] font-semibold">Se profil</button></div>
+              <div key={user.id} className="flex items-center gap-3 py-4"><button onClick={() => setSelectedUserId(user.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><Avatar user={user} size="md"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{user.name}</p><p className="truncate text-xs text-black/40">{user.bio}</p></div></button><button onClick={() => setSelectedUserId(user.id)} className="rounded-full border border-black/10 px-4 py-2 text-[11px] font-semibold">Se profil</button></div>
             ))}
             {visibleFriends.length === 0 && (
               <div className="py-14 text-center">
@@ -677,9 +803,11 @@ function OverhortApp({ onLogout }: { onLogout: () => void }) {
       api<ApiPublicUser[]>('/friends'),
       api<(ApiPublicUser & { requestId: string })[]>('/friend-requests'),
       api<{ id: string; name: string; username: string; email: string | null; bio: string; avatarUrl: string | null }>('/me'),
-    ]).then(([friendRows, requestRows, me]) => {
+      api<ApiQuote[]>('/feed'),
+    ]).then(([friendRows, requestRows, me, feedRows]) => {
       setAcceptedFriends(friendRows.map((user) => ({ ...apiUserToUser(user), isFriend: true })))
       setRequests(requestRows.map((user) => ({ ...apiUserToUser(user), requestId: user.requestId })))
+      setQuotes(feedRows.map(apiQuoteToQuote))
       const syncedProfile: Partial<User> = {
         id: me.id,
         name: me.name,
@@ -701,19 +829,38 @@ function OverhortApp({ onLogout }: { onLogout: () => void }) {
     setToast(message)
     window.setTimeout(() => setToast(''), 2500)
   }
-  const like = (id: string) => setQuotes((items) => items.map((quote) => quote.id === id ? { ...quote, liked: !quote.liked, likes: quote.likes + (quote.liked ? -1 : 1) } : quote))
-  const comment = (id: string, text: string) => setQuotes((items) => items.map((quote) => quote.id === id ? { ...quote, comments: [...quote.comments, { id: crypto.randomUUID(), author: currentUser, text }] } : quote))
-  const publish = (text: string, subject: User, color: string) => {
-    setQuotes((items) => [{ id: crypto.randomUUID(), text, subject, postedBy: currentUser, timestamp: 'akkurat nå', color, liked: false, likes: 0, comments: [] }, ...items])
-    setActiveTab('feed')
-    showToast(`Sitatet ble lagt på profilen til ${subject.name.split(' ')[0]}`)
+  const like = (id: string) => {
+    const quote = quotes.find((item) => item.id === id)
+    if (!quote) return
+    setQuotes((items) => items.map((item) => item.id === id ? { ...item, liked: !item.liked, likes: item.likes + (item.liked ? -1 : 1) } : item))
+    void api(`/quotes/${id}/likes`, { method: quote.liked ? 'DELETE' : 'POST' }).catch(() => {
+      setQuotes((items) => items.map((item) => item.id === id ? quote : item))
+      showToast('Kunne ikke oppdatere liken')
+    })
+  }
+  const comment = (id: string, text: string) => {
+    void api<{ id: string }>(`/quotes/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }).then((result) => {
+      setQuotes((items) => items.map((quote) => quote.id === id ? { ...quote, comments: [...quote.comments, { id: result.id, author: currentUser, text }] } : quote))
+    }).catch(() => showToast('Kunne ikke publisere kommentaren'))
+  }
+  const publish = async (text: string, subject: User, color: string) => {
+    try {
+      const result = await api<{ id: string; created_at: string }>('/quotes', { method: 'POST', body: JSON.stringify({ subjectId: subject.id, text, color }) })
+      setQuotes((items) => [{ id: result.id, text, subject, postedBy: currentUser, timestamp: 'akkurat nå', color, liked: false, likes: 0, comments: [] }, ...items])
+      setActiveTab('feed')
+      showToast(`Sitatet ble lagt på profilen til ${subject.name.split(' ')[0]}`)
+    } catch {
+      showToast('Kunne ikke publisere sitatet')
+    }
   }
   const removeQuote = (id: string) => {
-    setQuotes((items) => items.filter((quote) => quote.id !== id))
-    showToast('Sitatet er slettet fra profilen din')
+    void api(`/quotes/${id}`, { method: 'DELETE' }).then(() => {
+      setQuotes((items) => items.filter((quote) => quote.id !== id))
+      showToast('Sitatet er slettet fra profilen din')
+    }).catch(() => showToast('Kunne ikke slette sitatet'))
   }
   const content = useMemo(() => {
-    if (activeTab === 'create') return <CreateQuote onPublish={publish} onCancel={() => setActiveTab('feed')} />
+    if (activeTab === 'create') return <CreateQuote acceptedFriends={acceptedFriends} onPublish={publish} onCancel={() => setActiveTab('feed')} />
     if (activeTab === 'profile') return <Profile quotes={quotes} friendCount={acceptedFriends.length} requestCount={requests.length} onFriends={() => setActiveTab('friends')} onLogout={onLogout} onDelete={removeQuote} onLike={like} onComment={comment} showToast={showToast} onProfileUpdated={(changes) => { Object.assign(currentUser, changes); localStorage.setItem(DEMO_PROFILE_STORAGE_KEY, JSON.stringify(currentUser)); setProfileRevision((value) => value + 1) }} />
     if (activeTab === 'friends') return <Friends requests={requests} accepted={acceptedFriends} onAccept={async (user, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }); setRequests((items) => items.filter((item) => item.id !== user.id)); setAcceptedFriends((items) => [...items.filter((item) => item.id !== user.id), { ...user, isFriend: true }]); showToast(`Du og ${user.name.split(' ')[0]} er nå venner`) }} onDecline={async (userId, requestId) => { await api(`/friend-requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status: 'declined' }) }); setRequests((items) => items.filter((item) => item.id !== userId)) }} />
     return <Feed quotes={quotes} onLike={like} onComment={comment} goFriends={() => setActiveTab('friends')} requestCount={requests.length} />

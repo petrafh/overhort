@@ -99,23 +99,28 @@ app.patch('/api/me', requireAuth, asyncRoute(async (req, res) => {
 app.get('/api/feed', requireAuth, asyncRoute(async (req, res) => {
   const rows = await sql`
     select q.id, q.body as text, q.background_color as color, q.created_at,
-      json_build_object('id', subject.id, 'name', subject.name, 'username', subject.username, 'avatarUrl', subject.avatar_url) as subject,
-      json_build_object('id', author.id, 'name', author.name, 'username', author.username, 'avatarUrl', author.avatar_url) as "postedBy",
-      count(distinct l.user_id)::int as likes,
-      count(distinct c.id)::int as comments,
-      bool_or(l.user_id = ${req.userId}) as liked
+      json_build_object('id', subject.id, 'name', subject.name, 'username', subject.username, 'bio', subject.bio, 'avatarUrl', subject.avatar_url) as subject,
+      json_build_object('id', author.id, 'name', author.name, 'username', author.username, 'bio', author.bio, 'avatarUrl', author.avatar_url) as "postedBy",
+      (select count(*)::int from quote_likes l where l.quote_id = q.id) as likes,
+      exists (select 1 from quote_likes l where l.quote_id = q.id and l.user_id = ${req.userId}) as liked,
+      coalesce((
+        select json_agg(json_build_object(
+          'id', c.id,
+          'text', c.body,
+          'author', json_build_object('id', commenter.id, 'name', commenter.name, 'username', commenter.username, 'avatarUrl', commenter.avatar_url)
+        ) order by c.created_at)
+        from comments c join users commenter on commenter.id = c.author_id
+        where c.quote_id = q.id
+      ), '[]'::json) as comments
     from quotes q
     join users subject on subject.id = q.subject_id
     join users author on author.id = q.author_id
-    left join quote_likes l on l.quote_id = q.id
-    left join comments c on c.quote_id = q.id
     where q.subject_id = ${req.userId}
       or exists (
         select 1 from friendships f
         where f.user_low_id = least(${req.userId}::uuid, q.subject_id)
           and f.user_high_id = greatest(${req.userId}::uuid, q.subject_id)
       )
-    group by q.id, subject.id, author.id
     order by q.created_at desc
     limit 50
   `
@@ -150,6 +155,52 @@ app.get('/api/users/search', requireAuth, asyncRoute(async (req, res) => {
     limit 12
   `
   res.json(rows)
+}))
+
+app.get('/api/users/:id', requireAuth, asyncRoute(async (req, res) => {
+  const userId = z.string().uuid().parse(req.params.id)
+  const users = await sql`
+    select u.id, u.name, u.username, u.bio, u.avatar_url as "avatarUrl",
+      (select count(*)::int from friendships own where own.user_low_id = u.id or own.user_high_id = u.id) as "friendCount",
+      exists (
+        select 1 from friendships f
+        where f.user_low_id = least(u.id, ${req.userId}::uuid)
+          and f.user_high_id = greatest(u.id, ${req.userId}::uuid)
+      ) as "isFriend"
+    from users u
+    where u.id = ${userId}
+    limit 1
+  `
+  if (!users[0]) {
+    res.status(404).json({ error: 'Fant ikke profilen.' })
+    return
+  }
+
+  const canSeeQuotes = userId === req.userId || Boolean(users[0].isFriend)
+  const quotes = canSeeQuotes ? await sql`
+    select q.id, q.body as text, q.background_color as color, q.created_at,
+      json_build_object('id', subject.id, 'name', subject.name, 'username', subject.username, 'bio', subject.bio, 'avatarUrl', subject.avatar_url) as subject,
+      json_build_object('id', author.id, 'name', author.name, 'username', author.username, 'bio', author.bio, 'avatarUrl', author.avatar_url) as "postedBy",
+      (select count(*)::int from quote_likes l where l.quote_id = q.id) as likes,
+      exists (select 1 from quote_likes l where l.quote_id = q.id and l.user_id = ${req.userId}) as liked,
+      coalesce((
+        select json_agg(json_build_object(
+          'id', c.id,
+          'text', c.body,
+          'author', json_build_object('id', commenter.id, 'name', commenter.name, 'username', commenter.username, 'avatarUrl', commenter.avatar_url)
+        ) order by c.created_at)
+        from comments c join users commenter on commenter.id = c.author_id
+        where c.quote_id = q.id
+      ), '[]'::json) as comments
+    from quotes q
+    join users subject on subject.id = q.subject_id
+    join users author on author.id = q.author_id
+    where q.subject_id = ${userId}
+    order by q.created_at desc
+    limit 50
+  ` : []
+
+  res.json({ user: users[0], canSeeQuotes, quotes })
 }))
 
 app.get('/api/friends', requireAuth, asyncRoute(async (req, res) => {
