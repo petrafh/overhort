@@ -56,7 +56,25 @@ function Wordmark() {
   )
 }
 
-function Nav({ active, onChange, requestCount }: { active: Tab; onChange: (tab: Tab) => void; requestCount: number }) {
+function AccountMenu({ onLogout, placement = 'top' }: { onLogout: () => void; placement?: 'top' | 'bottom' }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative shrink-0">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="icon-button text-black/50" aria-label="Kontovalg" aria-expanded={open}><MoreHorizontal size={20} /></button>
+      {open && (
+        <>
+          <button type="button" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} aria-label="Lukk kontomeny" />
+          <div className={`absolute right-0 z-50 w-40 rounded-2xl border border-black/10 bg-white p-1.5 shadow-xl ${placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
+            <button type="button" onClick={onLogout} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition hover:bg-black/5"><LogOut size={15} /> Logg ut</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function Nav({ active, onChange, requestCount, onLogout }: { active: Tab; onChange: (tab: Tab) => void; requestCount: number; onLogout: () => void }) {
   const items: { id: Tab; label: string; icon: typeof Home }[] = [
     { id: 'feed', label: 'Hjem', icon: Home },
     { id: 'create', label: 'Nytt sitat', icon: Plus },
@@ -84,7 +102,7 @@ function Nav({ active, onChange, requestCount }: { active: Tab; onChange: (tab: 
             <p className="truncate text-sm font-semibold">{currentUser.name}</p>
             <p className="truncate text-xs text-black/45">@{currentUser.username}</p>
           </div>
-          <MoreHorizontal size={18} className="ml-auto text-black/50" />
+          <div className="ml-auto"><AccountMenu onLogout={onLogout} /></div>
         </div>
       </aside>
 
@@ -454,8 +472,8 @@ function Profile({ quotes, friendCount, requestCount, onFriends, onLogout, onDel
             <div className="hidden flex-col items-stretch gap-2 md:flex lg:flex-row">
               <button className="relative rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold" onClick={onFriends}><UserPlus size={15} className="mr-1.5 inline" /> Finn venner{requestCount > 0 && <span className="ml-2 rounded-full bg-[#a75d50] px-1.5 py-0.5 text-[9px] text-white">{requestCount}</span>}</button>
               <button className="rounded-full border border-black/15 px-5 py-2.5 text-xs font-semibold" onClick={() => setEditing(true)}>Rediger profil</button>
-              <button className="rounded-full border border-black/15 px-4 py-2.5 text-xs font-semibold text-black/55" onClick={onLogout}><LogOut size={15} className="mr-1.5 inline" /> Logg ut</button>
             </div>
+            <AccountMenu onLogout={onLogout} placement="bottom" />
           </div>
           <p className="mt-6 max-w-md text-sm leading-relaxed">{currentUser.bio}</p>
           <div className="mt-5 flex items-center gap-8 border-y border-black/10 py-4 text-center text-sm md:hidden">
@@ -465,7 +483,6 @@ function Profile({ quotes, friendCount, requestCount, onFriends, onLogout, onDel
           <div className="mt-5 flex gap-3 md:hidden">
             <button className="flex-1 rounded-full bg-black py-3 text-xs font-semibold text-white" onClick={() => setEditing(true)}>Rediger profil</button>
             <button onClick={onFriends} className="relative grid h-10 w-10 place-items-center rounded-full border border-black/15" aria-label="Finn venner"><UserPlus size={17} />{requestCount > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#a75d50] px-1 text-[9px] font-bold text-white">{requestCount}</span>}</button>
-            <button onClick={onLogout} className="grid h-10 w-10 place-items-center rounded-full border border-black/15 text-black/55" aria-label="Logg ut"><LogOut size={17} /></button>
           </div>
         </section>
 
@@ -868,7 +885,7 @@ function OverhortApp({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-[#101010]">
-      <Nav active={activeTab} onChange={setActiveTab} requestCount={requests.length} />
+      <Nav active={activeTab} onChange={setActiveTab} requestCount={requests.length} onLogout={onLogout} />
       <div className="pb-24 lg:ml-[244px] lg:pb-0">{content}</div>
       {toast && <div className="fixed bottom-24 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-black px-5 py-3 text-center text-xs font-medium text-white shadow-xl lg:bottom-8 lg:ml-[122px]">{toast}</div>}
     </div>
