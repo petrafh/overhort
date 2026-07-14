@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Webappen starter med lokale demodata, så grensesnittet kan prøves uten databaseoppsett. `npm run dev` starter både Vite på port 5173 og API-et på port 3001.
+Webappen starter med lokale demodata, så grensesnittet kan prøves uten databaseoppsett. `npm run dev` starter både Vite på `http://127.0.0.1:5174` og API-et på port 3001.
 
 ## Koble til Neon
 

@@ -16,8 +16,17 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   })
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: 'Ukjent feil' }))
-    throw new Error(body.error ?? `API-feil ${response.status}`)
+    const rawBody = await response.text()
+    let message = ''
+    try {
+      message = (JSON.parse(rawBody) as { error?: string }).error ?? ''
+    } catch {
+      // Vite returnerer ofte tekst/HTML når den lokale proxyen ikke finner API-serveren.
+    }
+    if (!message && import.meta.env.DEV && response.status >= 500) {
+      message = 'Den lokale API-serveren kjører ikke. Start den med «npm run dev:api» i en ny terminal.'
+    }
+    throw new Error(message || `API-feil ${response.status}`)
   }
 
   if (response.status === 204) return undefined as T
