@@ -44,14 +44,11 @@ function Wordmark() {
     <button className="group flex items-center gap-2.5" aria-label="Overhørt – gå hjem">
       <span className="grid h-8 w-8 place-items-center transition-transform duration-300 group-hover:-rotate-6" aria-hidden="true">
         <svg viewBox="0 0 40 40" className="h-full w-full overflow-visible" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="20" cy="20" r="18.25" fill="#101010" stroke="#101010" strokeWidth="1.5" />
-          <circle cx="14" cy="15" r="1.65" fill="white" />
-          <circle cx="26" cy="15" r="1.65" fill="white" />
-          <path d="M12.5 23.5C14.5 26.3 17 27.5 20 27.5C23 27.5 25.5 26.3 27.5 23.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-          <g className="origin-center transition-transform duration-300 group-hover:scale-105">
-            <path d="M8.3 21.1L30.8 19.2L31.7 27.1L9.2 29Z" fill="#F3E8CF" />
-            <path d="M8.3 21.1L30.8 19.2L31.7 27.1L9.2 29Z" stroke="#101010" strokeWidth="1.15" strokeLinejoin="round" />
-            <path d="M12.1 21.2L13 28.2M17 20.8L17.8 27.8M21.8 20.4L22.7 27.4M26.7 20L27.5 27" stroke="#101010" strokeOpacity="0.18" strokeWidth="0.8" />
+          <circle cx="20" cy="20" r="18.5" fill="#101010" />
+          <g className="origin-center transition-transform duration-300 group-hover:scale-105" stroke="white" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M24.7 29.8C23.6 32 21.8 33.2 19.7 33.2C16.3 33.2 14 30.7 14 27.4V19.3C14 14.3 17.5 10.7 22.4 10.7C27.1 10.7 30.5 14 30.5 18.4C30.5 21.5 29.1 23.4 26.8 25C25.3 26 24.5 27.1 24.7 29.8Z" strokeWidth="2.25" />
+            <path d="M18.6 24.8V19.6C18.6 17.1 20.1 15.3 22.4 15.3C24.5 15.3 26 16.8 26 18.8C26 20.3 25.3 21.3 23.9 22.2C21.5 23.9 20.7 25.8 21.5 28" strokeWidth="1.9" />
+            <path d="M18.6 20.5C20.1 20.2 21.2 20.6 22 21.7" strokeWidth="1.6" />
           </g>
         </svg>
       </span>
